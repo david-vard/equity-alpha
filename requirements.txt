@@ -1,0 +1,14 @@
+numpy
+pandas
+scipy
+scikit-learn
+statsmodels
+
+matplotlib
+seaborn
+
+jupyter
+jupyterlab
+
+nasdaqdatalink
+python-dotenv
