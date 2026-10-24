@@ -10,5 +10,7 @@ seaborn
 jupyter
 jupyterlab
 
-nasdaqdatalink
 python-dotenv
+requests
+
+pytest
