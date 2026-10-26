@@ -12,5 +12,7 @@ jupyterlab
 
 python-dotenv
 requests
+pyyaml
+pyarrow
 
 pytest

@@ -1,0 +1,43 @@
+# Parameters for the feature / label dataset (python -m src.build_panel).
+# Windows are in trading days (21 ~ 1 month, 63 ~ 3 months, 126 ~ 6 months, 252 ~ 1 year).
+
+data:
+  start: "1998-01-01"        # Sharadar SEP and SP500 history both start in 1998
+  end: "2026-10-23"          # explicit, so the cache key (and the sample) is reproducible
+  refresh: false             # true re-downloads everything from the API
+  max_gap_days: 2            # causally forward-fill a price gap of at most this many days
+
+universe:
+  # By default the universe is just the point-in-time S&P 500 (members that traded that day).
+  liquidity:
+    window: 21               # trailing mean of close * volume, known at the close of t
+    min_avg_dollar_volume: 0   # keep rows at or above this (nominal USD); 0 disables
+
+features:
+  min_obs_frac: 0.8          # rolling stats need this fraction of the window to be non-missing
+  reversal_windows: [1, 5]             # ret_1d, ret_5d
+  momentum_windows: [21, 63, 126, 252] # ret_21d ... ret_252d
+  momentum_12_1: {lookback: 252, skip: 21}   # return from t-252 to t-21
+  volatility_windows: [21, 63]         # vol_21d, vol_63d (std of daily returns, not annualised)
+  beta_window: 252                     # beta vs equal-weighted S&P 500 member return
+  dollar_volume_window: 21             # dollar_volume_21d, log_dollar_volume_21d
+  high_window: 252                     # dist_high_252d = price / rolling max - 1
+  trend_windows: [50, 200]             # trend_50d, trend_200d = price / simple moving average - 1
+
+preprocessing:
+  winsor_limits: [0.01, 0.99]          # per-date quantiles; applied to features, not labels
+
+labels:
+  horizons: [1, 5, 21]       # forward holding periods in trading days
+  lag: 1                     # signal at close of t, position entered at close of t + lag
+  delisting:                 # a stock that stops trading before the label date
+    enabled: true            # exit at its last price (x (1 + haircut)) instead of a NaN label
+    grace_days: 5            # "stopped trading" = last price more than this many days before the end
+    haircut:                 # extra return applied to the last price, by delisting reason
+      default: 0.0           # Sharadar prices run to the last OTC trade, so no extra loss by default
+      bankruptcy: 0.0        # sensitivity runs can set -0.30 for bankruptcy / regulatory
+      regulatory: 0.0
+
+output:
+  dir: data/processed        # gitignored
+  name: panel                # -> data/processed/panel.parquet

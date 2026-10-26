@@ -38,6 +38,14 @@ _SP500_HISTORY_START = "1998-01-01"
 _ALLOWED_PRICE_FIELDS = {"close", "closeadj", "closeunadj"}
 _ALLOWED_PANEL_FIELDS = _ALLOWED_PRICE_FIELDS | {"open", "high", "low", "volume"}
 _MIN_EXPECTED_CONSTITUENTS = 400
+# Highest priority first: the reason recorded when a ticker has several delisting rows.
+_DELISTING_REASONS = {
+    "bankruptcyliquidation": "bankruptcy",
+    "regulatorydelisting": "regulatory",
+    "voluntarydelisting": "voluntary",
+    "acquisitionby": "acquisition",
+    "delisted": "other",
+}
 _KNOWN_SP500_ACTIONS = {"current", "historical", "added", "removed"}
 
 load_dotenv(_REPOSITORY_ROOT / ".env")
@@ -259,16 +267,65 @@ def get_sp500_membership(start: str, end: str, refresh: bool = False) -> pd.Data
     return build_sp500_membership(_load_sp500_records(refresh), start_date, end_date)
 
 
+def _year_windows(start: str, end: str, years: int) -> list[tuple[str, str]]:
+    """Split ``[start, end]`` into consecutive, non-overlapping windows of ``years`` years."""
+    windows, window_start, last = [], pd.Timestamp(start), pd.Timestamp(end)
+    while window_start <= last:
+        next_start = window_start + pd.DateOffset(years=years)
+        window_end = min(next_start - pd.Timedelta(days=1), last)
+        windows.append((window_start.strftime("%Y-%m-%d"), window_end.strftime("%Y-%m-%d")))
+        window_start = next_start
+    return windows
+
+
+def get_delistings(end: str, refresh: bool = False) -> pd.DataFrame:
+    """Return one ``ticker, date, reason`` row per delisting event in the ``actions`` table.
+
+    ``reason`` is ``bankruptcy``, ``regulatory``, ``voluntary``, ``acquisition`` or ``other``
+    (a plain ``delisted`` row). Sharadar does not document the action codes; they were read
+    from sample rows (e.g. ``acquisitionby`` carries the acquirer in ``contraticker``). When
+    several rows share a ticker and date, the highest-priority reason wins. ``end`` is explicit
+    so the cache key is stable.
+
+    The ``actions`` table silently returns only the first 10 years of a longer date range (and
+    ``skip`` cannot reach the rest), so each action is requested in 5-year windows.
+    """
+    end_date = pd.Timestamp(end).strftime("%Y-%m-%d")
+    frames = []
+    for priority, action in enumerate(_DELISTING_REASONS):
+        for window_start, window_end in _year_windows(_SP500_HISTORY_START, end_date, 5):
+            rows = _fetch_table(
+                "actions",
+                refresh,
+                action=action,
+                **{"from": window_start, "to": window_end, "fields": "date,action,ticker"},
+            )
+            if not rows.empty:
+                rows = rows.assign(priority=priority, reason=_DELISTING_REASONS[action])
+                frames.append(rows[["ticker", "date", "reason", "priority"]])
+    if not frames:
+        return pd.DataFrame(columns=["ticker", "date", "reason"])
+    events = pd.concat(frames, ignore_index=True)
+    events["date"] = pd.to_datetime(events["date"], errors="coerce").dt.normalize()
+    events = events.dropna(subset=["date", "ticker"])
+    events = events.sort_values("priority").drop_duplicates(["ticker", "date"])
+    return events[["ticker", "date", "reason"]].sort_values(["date", "ticker"], ignore_index=True)
+
+
 def get_universe_panel(
     start: str,
     end: str,
-    fields: tuple[str, ...] | list[str] = ("closeadj", "close", "volume"),
+    fields: tuple[str, ...] | list[str] = ("open", "close", "closeadj", "volume"),
     refresh: bool = False,
+    apply_membership: bool = True,
 ) -> dict[str, pd.DataFrame]:
     """Return one wide date x ticker frame per field, kept to S&P 500 members.
 
     Prices are only kept for dates on which the ticker was an index member;
     other cells are ``NaN``. All frames share the same index and columns.
+    With ``apply_membership=False`` the full price history of every ticker that
+    was a member at any point in ``[start, end]`` is returned instead, so that
+    trailing windows can use pre-membership history (filter to members afterwards).
     ``closeadj`` is adjusted for splits, dividends and spinoffs, ``close`` for
     splits only, ``closeunadj`` is unadjusted, and ``volume`` is split adjusted
     (so pair it with ``close``, not ``closeadj``, for dollar volume).
@@ -316,7 +373,10 @@ def get_universe_panel(
     daily_prices = daily_prices.dropna(subset=["date", "ticker"])
     daily_prices = daily_prices.drop_duplicates(subset=["date", "ticker"])
 
-    point_in_time_prices = daily_prices.merge(membership, on=["date", "ticker"], how="inner")
+    if apply_membership:
+        point_in_time_prices = daily_prices.merge(membership, on=["date", "ticker"], how="inner")
+    else:
+        point_in_time_prices = daily_prices
     panel: dict[str, pd.DataFrame] = {}
     for field in fields:
         wide_field = point_in_time_prices.pivot(index="date", columns="ticker", values=field)

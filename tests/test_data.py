@@ -90,7 +90,7 @@ def fake_api(tmp_path, monkeypatch):
             return _FakeResponse(
                 b"date,action,ticker\n2024-01-01,current,AAA\n2024-01-03,added,AAA\n"
             )
-        values = {"closeadj": (10, 11), "close": (20, 22), "volume": (1000, 2000)}
+        values = {"open": (19, 21), "closeadj": (10, 11), "close": (20, 22), "volume": (1000, 2000)}
         columns = params["fields"].split(",")
         rows = [
             ",".join([day, "AAA", *(str(values[c][i]) for c in columns[2:])])
@@ -147,9 +147,9 @@ def test_small_universe_warns():
 
 def test_panel_fields_aligned_and_filtered_to_membership(fake_api):
     panel = data_api.get_universe_panel("2024-01-01", "2024-01-03")
-    assert list(panel) == ["closeadj", "close", "volume"]
+    assert list(panel) == ["open", "close", "closeadj", "volume"]
     sent_fields = [p["fields"] for url, p in fake_api if url.endswith("/stocks")]
-    assert sent_fields == ["date,ticker,closeadj,close,volume"]
+    assert sent_fields == ["date,ticker,open,close,closeadj,volume"]
     for frame in panel.values():
         assert frame.index.equals(panel["close"].index)
         assert frame.columns.equals(panel["close"].columns)
@@ -168,3 +168,49 @@ def test_single_field_panel_equals_universe_prices(fake_api):
 def test_panel_rejects_bad_fields(fields):
     with pytest.raises(ValueError):
         data_api.get_universe_panel("2024-01-01", "2024-01-03", fields)
+
+
+def test_get_delistings_reason_priority_windows_cache_and_key(tmp_path, monkeypatch):
+    monkeypatch.setattr(sharadar, "_RAW_CACHE_ROOT", tmp_path)
+    monkeypatch.setattr(sharadar, "_MIN_SECONDS_BETWEEN_REQUESTS", 0)
+    monkeypatch.setenv("SHARADAR_API_KEY", "SECRET123")
+    rows = {
+        "bankruptcyliquidation": [("2020-05-01", "BBB")],
+        "regulatorydelisting": [],
+        "voluntarydelisting": [],
+        "acquisitionby": [("2019-03-01", "CCC"), ("2001-06-01", "EEE")],
+        "delisted": [("2020-05-01", "BBB"), ("2019-03-01", "CCC"), ("2018-01-02", "DDD")],
+    }
+    calls = []
+
+    def fake_get(url, params=None, timeout=None):
+        calls.append((url, dict(params)))
+        # like the real table, only rows inside the requested window come back
+        body = [
+            f"{d},{params['action']},{t}"
+            for d, t in rows[params["action"]]
+            if params["from"] <= d <= params["to"]
+        ]
+        return _FakeResponse(("\n".join(["date,action,ticker", *body]) + "\n").encode())
+
+    monkeypatch.setattr(sharadar.requests, "get", fake_get)
+    events = data_api.get_delistings("2026-10-23")
+    assert dict(zip(events.ticker, events.reason)) == {
+        "BBB": "bankruptcy",
+        "CCC": "acquisition",
+        "DDD": "other",
+        "EEE": "acquisition",  # found in an early window, not lost to the 10-year cap
+    }
+    assert len(events) == 4 and list(events.columns) == ["ticker", "date", "reason"]
+    assert all(url.endswith("/actions") for url, _ in calls)
+    # per action the windows tile 1998-01-01..2026-10-23 with no gap, overlap or span > 10 years
+    for action in rows:
+        spans = sorted((p["from"], p["to"]) for _, p in calls if p["action"] == action)
+        assert spans[0][0] == "1998-01-01" and spans[-1][1] == "2026-10-23"
+        for (_, prev_end), (next_start, _) in zip(spans, spans[1:]):
+            assert pd.Timestamp(next_start) - pd.Timestamp(prev_end) == pd.Timedelta(days=1)
+        assert all((pd.Timestamp(b) - pd.Timestamp(a)).days < 3650 for a, b in spans)
+    n_calls = len(calls)
+    data_api.get_delistings("2026-10-23")
+    assert len(calls) == n_calls  # served from cache
+    assert not any("SECRET123" in str(f.read_bytes()) for f in tmp_path.rglob("*.csv"))
