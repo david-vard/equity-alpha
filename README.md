@@ -249,6 +249,97 @@ Rejected by Benjamini-Hochberg (Holm-rejected rows have Holm p < 0.05):
 
 </details>
 
+## Pre-model diagnostics
+
+```bash
+python -m src.run_diagnostics         # tables and figures -> reports/diagnostics/
+```
+
+Three checks run before any model was specified. Summary and recommendation:
+[`reports/diagnostics/SUMMARY.md`](reports/diagnostics/SUMMARY.md).
+
+- **Why IC shrinks with horizon** (momentum: 0.0134 at 1 day, 0.0063 at 21 days). Compounded daily labels reproduce
+  the stored 21-day labels exactly, so this is not a bug. It is a real feature of the data. Momentum and low-vol ICs
+  flip sign on the most dispersed days (momentum IC -0.033 on the top 10% of days, +0.018 on the rest), and those days
+  dominate a multi-day return. An exact decomposition of the 21-day IC shows this effect removes about 70% of the IC that
+  sqrt(h) scaling would predict.
+- **Why volatility deciles disagree with the IC.** The high-vol decile has a beta about 1 higher than the low-vol
+  decile. Hedged for beta, measured by medians or in return ranks, the vol spread has the IC's sign. Momentum, by
+  contrast, works in ranks and medians but not in mean returns (rebounds among the losers).
+- **Break-even costs.** Since mid-2010 one-day reversal breaks even at 0-2 bp per side, and five-day reversal at about
+  4 bp per side.
+
+## Modelling
+
+Do Ridge, Elastic Net and LightGBM forecast cross-sectional returns better out of sample than simple baselines?
+The design is fixed in [`configs/models.yaml`](configs/models.yaml) and was committed before any model was fitted.
+
+```bash
+python -m src.run_models --lightgbm-ablation   # tables, figures, run_metadata.json -> reports/models/
+```
+
+Like the signal research, the run refuses to start unless `configs/models.yaml` and `configs/research.yaml` are
+committed and unmodified. Out-of-sample predictions go to `data/processed/oof_predictions.parquet` (gitignored).
+Plots and narrative: [`notebooks/03_modelling.ipynb`](notebooks/03_modelling.ipynb). On macOS, LightGBM needs an
+OpenMP runtime; if Homebrew's `libomp` is not installed, the copy bundled with scikit-learn works:
+
+```bash
+export DYLD_FALLBACK_LIBRARY_PATH="$PWD/.venv/lib/python3.12/site-packages/sklearn/.dylibs"
+```
+
+### Design
+
+- **Targets.** `fwd_ret_5d_xs` and `fwd_ret_21d_xs`; h = 1 is excluded because its break-even cost is near zero. The
+  primary variant ranks the target within each date into [-0.5, 0.5]; the raw target is the alternative. Evaluation
+  always uses the raw label `fwd_ret_{h}d`.
+- **Features.** The 16 `z_` features (`z_dollar_volume_21d` is dropped as rank-identical to its log). Linear models fill
+  missing values with 0, the cross-sectional mean; LightGBM handles NaN natively.
+- **Baselines.**
+  - B0: reversal, `-z_ret_5d`.
+  - B1: equal-weight composite of `ret_5d` (-), `mom_12_1` (+), `vol_63d` (-) and `dist_high_252d` (+).
+  - B2: expanding-window Fama-MacBeth, the mean of past per-date slopes on all 16 features.
+- **Models.** Pooled Ridge, Elastic Net and LightGBM. The pre-registered grids are small, the trees shallow and
+  heavily regularised, and LightGBM's number of trees comes from early stopping. Seeds and thread counts are fixed.
+  Each training target is scaled to unit standard deviation so that one penalty grid serves both targets.
+- **Walk-forward.**
+  - Expanding window, refit every January; the first test year is 2007, so the dot-com era is training data only.
+  - Training rows whose label window reaches the first test date are purged.
+  - Hyperparameters are chosen by mean daily Spearman IC on the last two years of each training window, purged the
+    same way, then refit on the full window. No test date influences its own fold.
+- **Evaluation.**
+  - Daily rank IC, with Newey-West t as in the signal research and a dispersion-weighted IC alongside.
+  - Paired tests of the daily IC difference between models and baselines.
+  - Holm adjustment, run separately over the 20 IC tests and over the 36 comparisons.
+  - Gross deciles on non-overlapping dates, with the beta-hedged spread as the primary one.
+  - Also: stability by sub-period, decay, coefficient paths, LightGBM permutation importance and SHAP, a family
+    ablation and a terminal-label check.
+
+### Results (out of sample 2007-01-03 to 2021-11-30, 1.89m stock-days)
+
+**No step in complexity improves the forecast significantly. None of the 36 paired comparisons is rejected by Holm.**
+LightGBM on the 5-day rank target is the only predictor with a Holm-significant IC. Its edge over the one-feature
+reversal baseline (+0.005 IC, t 1.0) is not distinguishable from zero. At 21 days no predictor is significant, and the
+linear models lose in 2007-09, when momentum crashed.
+
+| Predictor (rank target) | IC h=5 | NW t | Holm p | Beta-hedged D10-D1 (bp / 5d) | IC h=21 | NW t |
+|---|---:|---:|---:|---:|---:|---:|
+| B0 reversal | 0.0123 | 2.54 | 0.20 | 22.3 | 0.0103 | 1.84 |
+| B1 composite | 0.0161 | 2.08 | 0.64 | 7.2 | 0.0091 | 0.64 |
+| B2 Fama-MacBeth | 0.0109 | 1.75 | 1.00 | 1.3 | -0.0051 | -0.51 |
+| Ridge | 0.0120 | 1.73 | 1.00 | 0.5 | -0.0103 | -0.90 |
+| Elastic Net | 0.0129 | 2.00 | 0.73 | 4.7 | -0.0037 | -0.43 |
+| LightGBM | **0.0174** | **3.50** | **0.010** | 13.2 | 0.0060 | 0.93 |
+
+- **Every complexity step adds little or nothing.** Ridge vs B2 and Elastic Net vs Ridge are about zero. LightGBM vs
+  Ridge is positive in all four horizon x target cases (+0.004 to +0.016), but t is only 1.2-1.6.
+- **The rank target beats the raw target for every model at 5 days.** Out-of-sample R² against a zero forecast is
+  about 0, as expected for cross-sectional forecasts.
+- **Short-term reversal carries the result.** On its own it nearly matches all 16 features at 5 days (Ridge 0.0112,
+  LightGBM 0.0142). At 21 days momentum on its own is negative and drags the full models down. LightGBM relies on
+  `ret_5d` (negative) and `mom_12_1` (positive), consistent with the priors and the Fama-MacBeth results.
+- **Excluding delisting exits** leaves the best model's IC unchanged.
+- All figures are gross. Transaction costs and portfolio construction are not modelled yet.
+
 ## Data attribution
 
 Data from Sharadar: Core US Equities Bundle (SEP prices, S&P 500 constituents,corporate actions). 
@@ -261,3 +352,9 @@ every feature at date `t` computed from data truncated at `t` equals the value c
 full dataset (including z-scores and the optional liquidity filter). Others cover labels and lag, per-date
 standardisation, point-in-time membership, hand-computed returns / momentum / beta, and missing
 data handling.
+
+The modelling tests check that every walk-forward fold is purged (no training label reaches the test year, no inner
+training label reaches validation), that Ridge and Elastic Net match scikit-learn, that the Fama-MacBeth forecast
+averages per-date slopes, and that LightGBM is deterministic. A runner smoke test on a synthetic panel recovers a
+planted reversal signal. The diagnostics tests cover the label-compounding check, the exact IC decomposition, the
+beta-hedged and robust spreads, and a hand-computed break-even example.
