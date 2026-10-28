@@ -1,0 +1,152 @@
+# Modelling design (python -m src.run_models), fixed before any model is fitted.
+# Question: do Ridge, Elastic Net and LightGBM forecast cross-sectional returns out of sample better
+# than simple baselines? A null result is reported as such. No portfolios beyond gross decile
+# spreads, no optimiser, no costs. Data only through src.signals.load_research_panel (holdout,
+# embargo, lag, NW lag rule and quantiles come from configs/research.yaml, unchanged).
+# Choices below follow reports/diagnostics/SUMMARY.md.
+
+research_config: configs/research.yaml
+
+targets:
+  horizons: [5, 21]              # h = 1 excluded: since 2010 reversal breaks even at 0-2 bp per side
+  label: fwd_ret_{h}d_xs         # cross-sectionally demeaned h-day return
+  variants:
+    rank:                        # primary: within-date uniform ranks mapped to [-0.5, 0.5]
+      primary: true              # raw-return losses are dominated by high-dispersion days and tails
+    raw:
+      primary: false
+  # Each training target is divided by its pooled standard deviation over the training rows, so the
+  # regularisation grids mean the same thing for both variants and horizons; predictions are only
+  # ever used as cross-sectional scores.
+  standardise_in_training: true
+  evaluation_label: fwd_ret_{h}d   # ICs and deciles always use the raw label, as in the signal research
+
+features:
+  columns:                       # 16 z-features; z_dollar_volume_21d dropped (rank-identical to the log)
+    - z_ret_1d
+    - z_ret_5d
+    - z_ret_21d
+    - z_ret_63d
+    - z_ret_126d
+    - z_ret_252d
+    - z_mom_12_1
+    - z_vol_21d
+    - z_vol_63d
+    - z_beta_252d
+    - z_log_dollar_volume_21d
+    - z_dist_high_252d
+    - z_trend_50d
+    - z_trend_200d
+    - z_overnight_ret
+    - z_intraday_ret
+  missing:
+    linear: zero_fill            # 0 = the cross-sectional mean of a z-score; Ridge, Elastic Net, B1, B2
+    lightgbm: native             # NaN handled by the trees
+  # no other imputation; rows with a NaN target are dropped from training
+
+baselines:
+  B0_reversal:                   # score = -z_ret_5d
+    weights: {z_ret_5d: -1}
+  B1_composite:                  # equal-weight family representatives with a non-zero prior, prior signs
+    weights: {z_ret_5d: -1, z_mom_12_1: 1, z_vol_63d: -1, z_dist_high_252d: 1}
+  B2_fama_macbeth:               # mean of past per-date OLS coefficients applied to current z-features
+    features: all                # same 16 features as the models: Ridge vs B2 isolates pooling + shrinkage
+    refit: same_as_models        # coefficients averaged over the purged training dates of each fold
+    target_variants: [rank, raw]
+    min_names_per_date: from_research_config
+
+models:
+  ridge:
+    # minimises mean squared error + alpha * ||b||^2 (per-observation penalty), intercept fitted
+    alpha: [0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]
+    train_date_stride: 1
+  elastic_net:
+    # sklearn convention: 1/(2n) ||y - Xb||^2 + alpha * (l1_ratio ||b||_1 + (1 - l1_ratio)/2 ||b||^2)
+    alpha: [0.0001, 0.0003, 0.001, 0.003, 0.01]
+    l1_ratio: [0.1, 0.5, 0.9]
+    max_iter: 10000
+    tol: 1.0e-6
+    train_date_stride: 1
+  lightgbm:
+    objective: regression        # l2
+    num_leaves: [7, 15]          # shallow trees
+    min_data_in_leaf: [2000, 10000]
+    lambda_l2: [1.0, 50.0]
+    learning_rate: [0.05]        # fixed: early stopping trades it off against n_estimators
+    feature_fraction: [0.7]      # fixed to keep the grid at 8 combinations per fold
+    bagging_fraction: 1.0
+    max_depth: -1
+    n_estimators:
+      max: 2000
+      early_stopping_rounds: 100 # on l2 of the inner validation block
+    train_date_stride: 5
+  seed: 42
+  num_threads: 4
+  deterministic: true            # LightGBM deterministic + force_col_wise; fixed seeds everywhere
+
+walk_forward:
+  scheme: expanding
+  refit: every_january
+  train_start: first_research_date   # 1999-01-04
+  first_test_year: 2007          # OOS 2007-01 to the last research date (2021-11-30); the dot-com
+                                 # era, when the signals were strongest, is training data only
+  last_test_date: last_research_date
+  purge: label_end_before_first_test_date
+    # a training row dated s is kept only if pos(s) + lag + h < pos(first test date)
+  inner_validation:
+    years: 2                     # last 2 calendar years of each training window
+    purge: label_end_before_first_validation_date
+    selection_metric: mean_daily_spearman_ic   # prediction vs evaluation label on the validation block
+    refit_on_full_window: true   # chosen hyperparameters refit on the whole purged training window;
+                                 # LightGBM keeps the early-stopped number of trees
+  # no test-period date influences its own fold's fit, hyperparameters or feature choice
+
+evaluation:
+  ic: spearman                   # daily cross-sectional, src.signals.cross_sectional_ic
+  newey_west: from_research_config   # max(h, plug-in) lags on daily series, plug-in on non-overlapping
+  dispersion_weighted_ic: true   # descriptive, next to the equal-weighted IC
+  oos_r2:
+    reference: zero_forecast     # against the demeaned target; reported only where prediction and
+                                 # target share units (B2 and the models, per target variant)
+  multiple_testing:
+    method: holm
+    alpha: 0.05
+    families:                    # adjusted separately, as in the signal research
+      ic_tests: all_predictors_x_horizons_x_target_variants   # B0 / B1 have no target variant
+      comparisons: all_paired_tests
+  comparisons:                   # paired NW t on the daily IC difference (first minus second)
+    - [ridge, B2_fama_macbeth]
+    - [elastic_net, ridge]
+    - [lightgbm, ridge]
+    - [ridge, B0_reversal]
+    - [elastic_net, B0_reversal]
+    - [lightgbm, B0_reversal]
+    - [ridge, B1_composite]
+    - [elastic_net, B1_composite]
+    - [lightgbm, B1_composite]
+  portfolios:                    # gross deciles of the prediction, rebalanced every h-th date (offset 0)
+    spreads: [beta_hedged, rank, raw]   # beta_hedged primary; raw reported as secondary
+    beta_feature: beta_252d
+    turnover: [prediction_rank_autocorrelation, decile_leg_one_way]
+  stability:
+    periods:
+      gfc: ["2007-01-01", "2009-12-31"]
+      y2010_2019: ["2010-01-01", "2019-12-31"]
+      post2020: ["2020-01-01", "2021-12-31"]
+    halves: median_oos_date
+    decay_days: 21               # prediction IC against the 1-day return on holding days 1..21
+  interpretation:
+    linear_coefficient_paths: true     # standardised coefficients per fold, Elastic Net sparsity
+    lightgbm_permutation_importance:
+      metric: mean_daily_spearman_ic
+      permute: within_date
+      repeats: 3
+    lightgbm_shap:
+      explainer: tree
+      dates_per_fold: 50         # evenly spaced OOS dates, all names on those dates
+  ablation:
+    families: from_research_config
+    ridge: [leave_one_family_out, single_family]          # required
+    lightgbm: [leave_one_family_out, single_family]       # if runtime allows; primary target only
+  terminal_sensitivity:
+    best_model_rule: highest_oos_ic_primary_target_per_horizon   # declared before results

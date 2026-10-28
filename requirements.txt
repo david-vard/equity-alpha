@@ -2,6 +2,8 @@ numpy
 pandas
 scipy
 scikit-learn
+lightgbm
+shap
 statsmodels
 
 matplotlib

@@ -226,3 +226,6 @@ __marimo__/
 
 # Cached daily signal-research series
 /reports/signal_research/cache/
+
+# Cached daily out-of-sample IC series
+/reports/models/cache/
