@@ -1,0 +1,29 @@
+{
+  "config_commit": "19690871b14385fbd7179eeed63da25592e21423",
+  "config_dirty": false,
+  "config_sha256": "2021ef2c7310c89fe4b3f8dbcb458cfded52ddab8ceee20895f8cea6ffe657e0",
+  "code_commit": "eac9089935a2a56bd96b6aca50fc7575bfa57f8b",
+  "code_dirty": true,
+  "features_config_sha256": "42109759ae31f519774ae5ebdcdf59468732ed5eb2511704420bf1ed47fc136d",
+  "panel_sha256": "747c69f3ea849f522e4f3e277de4771ea9d79c794be27425f89eb25f8cd6ee4c",
+  "panel_bytes": 649981296,
+  "holdout_start": "2022-01-01",
+  "embargo_trading_days": 22,
+  "first_research_date": "1999-01-04",
+  "last_research_date": "2021-11-30",
+  "split_date": "2010-06-21",
+  "n_research_dates": 5766,
+  "n_research_rows": 2890984,
+  "compounding_rel_tol": 1e-05,
+  "compounding_mismatches": 0,
+  "max_abs_xs_minus_raw_spread": 6.3874176503553315e-09,
+  "winsor_limits": [
+    0.01,
+    0.99
+  ],
+  "reference_check": "passed: raw spreads, ICs and turnover match the signal research",
+  "python": "3.12.10",
+  "pandas": "3.0.6",
+  "numpy": "2.5.3",
+  "runtime_seconds": 99.6
+}
