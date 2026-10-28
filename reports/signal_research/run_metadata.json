@@ -1,0 +1,27 @@
+{
+  "config_commit": "19690871b14385fbd7179eeed63da25592e21423",
+  "config_dirty": false,
+  "config_sha256": "2021ef2c7310c89fe4b3f8dbcb458cfded52ddab8ceee20895f8cea6ffe657e0",
+  "code_commit": "564bf294b050156cd64f1f00651bf9f606b9d34b",
+  "code_dirty": false,
+  "features_config_sha256": "42109759ae31f519774ae5ebdcdf59468732ed5eb2511704420bf1ed47fc136d",
+  "panel_sha256": "747c69f3ea849f522e4f3e277de4771ea9d79c794be27425f89eb25f8cd6ee4c",
+  "panel_bytes": 649981296,
+  "holdout_start": "2022-01-01",
+  "embargo_trading_days": 22,
+  "first_research_date": "1999-01-04",
+  "last_research_date": "2021-11-30",
+  "n_research_dates": 5766,
+  "n_research_rows": 2890984,
+  "n_tests": 51,
+  "rank_duplicates_in_family": [
+    "log_dollar_volume_21d"
+  ],
+  "python": "3.12.10",
+  "pandas": "3.0.6",
+  "numpy": "2.5.3",
+  "scipy": "1.18.1",
+  "statsmodels": "0.15.0",
+  "pyarrow": "26.0.0",
+  "runtime_seconds": 286.3
+}

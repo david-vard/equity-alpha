@@ -157,6 +157,103 @@ Statistical significance (`nw_t`, adjusted p, `reject_*`), economic magnitude (I
 slope), gross portfolio performance and turnover are separate columns / tables and should be read
 together: a significant IC says nothing about whether the spread survives turnover.
 
+### Results (research sample 1999-01-04 to 2021-11-30, 5,766 dates)
+
+Of 51 IC tests, 11 are rejected by Holm, 14 by Benjamini-Yekutieli and 18 by Benjamini-Hochberg at 5%
+(13 have |t| > 3). Short-term reversal (`ret_1d`, `ret_5d`, `intraday_ret`) is the only effect that is
+significant under every correction and, at short horizons, in the long-short and Fama-MacBeth tests; momentum and low volatility
+have small, persistent ICs at the one-day horizon whose long-short spreads are not significant; the remaining
+features are null. All long-short figures are gross (no costs). IC is per date, NW t uses `max(h, plug-in)`
+lags, p-values are adjusted over the 51 IC tests, Sharpe is the annualised raw D10 - D1 spread on
+non-overlapping dates (negative for reversal: it pays to buy D1 and sell D10), and turnover is the mean one-way leg turnover per rebalance. Narrative:
+[`notebooks/02_signal_research.ipynb`](notebooks/02_signal_research.ipynb).
+
+Rejected by Benjamini-Hochberg (Holm-rejected rows have Holm p < 0.05):
+
+| Feature | h | IC mean | NW t | Holm p | BH p | Gross L/S Sharpe | Turnover |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `ret_1d` | 1 | -0.0092 | -4.12 | 0.0017 | 0.0003 | -0.81 | 0.85 |
+| `ret_1d` | 5 | -0.0119 | -5.60 | <0.0001 | <0.0001 | -0.60 | 0.86 |
+| `ret_1d` | 21 | -0.0073 | -3.45 | 0.0227 | 0.0026 | -0.14 | 0.87 |
+| `ret_5d` | 1 | -0.0104 | -4.93 | <0.0001 | <0.0001 | -0.86 | 0.40 |
+| `ret_5d` | 5 | -0.0155 | -4.23 | 0.0011 | 0.0002 | -0.69 | 0.87 |
+| `ret_5d` | 21 | -0.0115 | -2.69 | 0.2610 | 0.0231 | -0.17 | 0.86 |
+| `ret_126d` | 1 | +0.0083 | +3.09 | 0.0788 | 0.0084 | -0.13 | 0.08 |
+| `ret_252d` | 1 | +0.0113 | +3.87 | 0.0046 | 0.0006 | -0.12 | 0.06 |
+| `mom_12_1` | 1 | +0.0134 | +4.74 | 0.0001 | <0.0001 | +0.05 | 0.06 |
+| `mom_12_1` | 5 | +0.0151 | +2.57 | 0.3608 | 0.0309 | +0.01 | 0.14 |
+| `vol_21d` | 1 | -0.0118 | -3.97 | 0.0032 | 0.0005 | +0.15 | 0.09 |
+| `vol_63d` | 1 | -0.0122 | -3.87 | 0.0046 | 0.0006 | +0.13 | 0.04 |
+| `beta_252d` | 1 | -0.0100 | -2.73 | 0.2375 | 0.0218 | +0.13 | 0.02 |
+| `dist_high_252d` | 1 | +0.0089 | +2.97 | 0.1140 | 0.0109 | -0.33 | 0.16 |
+| `trend_200d` | 1 | +0.0070 | +2.53 | 0.3933 | 0.0328 | -0.19 | 0.08 |
+| `intraday_ret` | 1 | -0.0087 | -4.19 | 0.0013 | 0.0002 | -0.75 | 0.85 |
+| `intraday_ret` | 5 | -0.0106 | -5.37 | <0.0001 | <0.0001 | -0.63 | 0.86 |
+| `intraday_ret` | 21 | -0.0062 | -3.05 | 0.0892 | 0.0090 | -0.02 | 0.86 |
+
+<details><summary>All 51 feature x horizon tests</summary>
+
+| Feature | h | IC mean | NW t | Holm p | BH p | Gross L/S Sharpe | Turnover |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `ret_1d` | 1 | -0.0092 | -4.12 | 0.0017 | 0.0003 | -0.81 | 0.85 |
+| `ret_1d` | 5 | -0.0119 | -5.60 | <0.0001 | <0.0001 | -0.60 | 0.86 |
+| `ret_1d` | 21 | -0.0073 | -3.45 | 0.0227 | 0.0026 | -0.14 | 0.87 |
+| `ret_5d` | 1 | -0.0104 | -4.93 | <0.0001 | <0.0001 | -0.86 | 0.40 |
+| `ret_5d` | 5 | -0.0155 | -4.23 | 0.0011 | 0.0002 | -0.69 | 0.87 |
+| `ret_5d` | 21 | -0.0115 | -2.69 | 0.2610 | 0.0231 | -0.17 | 0.86 |
+| `ret_21d` | 1 | -0.0039 | -1.77 | 1.0000 | 0.1297 | -0.45 | 0.20 |
+| `ret_21d` | 5 | -0.0095 | -2.18 | 0.9075 | 0.0711 | -0.26 | 0.44 |
+| `ret_21d` | 21 | -0.0154 | -2.24 | 0.7950 | 0.0634 | -0.21 | 0.87 |
+| `ret_63d` | 1 | +0.0009 | +0.39 | 1.0000 | 0.7902 | -0.39 | 0.12 |
+| `ret_63d` | 5 | -0.0031 | -0.64 | 1.0000 | 0.6356 | -0.25 | 0.26 |
+| `ret_63d` | 21 | -0.0089 | -1.02 | 1.0000 | 0.4108 | -0.17 | 0.52 |
+| `ret_126d` | 1 | +0.0083 | +3.09 | 0.0788 | 0.0084 | -0.13 | 0.08 |
+| `ret_126d` | 5 | +0.0063 | +1.15 | 1.0000 | 0.3735 | -0.09 | 0.19 |
+| `ret_126d` | 21 | -0.0010 | -0.11 | 1.0000 | 0.9380 | -0.10 | 0.38 |
+| `ret_252d` | 1 | +0.0113 | +3.87 | 0.0046 | 0.0006 | -0.12 | 0.06 |
+| `ret_252d` | 5 | +0.0116 | +1.91 | 1.0000 | 0.1029 | -0.13 | 0.13 |
+| `ret_252d` | 21 | +0.0026 | +0.24 | 1.0000 | 0.8743 | -0.14 | 0.27 |
+| `mom_12_1` | 1 | +0.0134 | +4.74 | 0.0001 | <0.0001 | +0.05 | 0.06 |
+| `mom_12_1` | 5 | +0.0151 | +2.57 | 0.3608 | 0.0309 | +0.01 | 0.14 |
+| `mom_12_1` | 21 | +0.0063 | +0.59 | 1.0000 | 0.6573 | -0.09 | 0.28 |
+| `vol_21d` | 1 | -0.0118 | -3.97 | 0.0032 | 0.0005 | +0.15 | 0.09 |
+| `vol_21d` | 5 | -0.0079 | -1.28 | 1.0000 | 0.3176 | +0.13 | 0.25 |
+| `vol_21d` | 21 | -0.0039 | -0.35 | 1.0000 | 0.8043 | +0.16 | 0.57 |
+| `vol_63d` | 1 | -0.0122 | -3.87 | 0.0046 | 0.0006 | +0.13 | 0.04 |
+| `vol_63d` | 5 | -0.0079 | -1.19 | 1.0000 | 0.3596 | +0.11 | 0.10 |
+| `vol_63d` | 21 | -0.0048 | -0.40 | 1.0000 | 0.7902 | +0.13 | 0.25 |
+| `beta_252d` | 1 | -0.0100 | -2.73 | 0.2375 | 0.0218 | +0.13 | 0.02 |
+| `beta_252d` | 5 | -0.0054 | -0.71 | 1.0000 | 0.5933 | +0.11 | 0.04 |
+| `beta_252d` | 21 | -0.0010 | -0.07 | 1.0000 | 0.9447 | +0.11 | 0.11 |
+| `dollar_volume_21d` | 1 | -0.0028 | -1.98 | 1.0000 | 0.0930 | -0.34 | 0.02 |
+| `dollar_volume_21d` | 5 | -0.0032 | -1.08 | 1.0000 | 0.3974 | -0.39 | 0.07 |
+| `dollar_volume_21d` | 21 | -0.0114 | -1.97 | 1.0000 | 0.0930 | -0.46 | 0.18 |
+| `log_dollar_volume_21d` | 1 | -0.0028 | -1.98 | 1.0000 | 0.0930 | -0.34 | 0.02 |
+| `log_dollar_volume_21d` | 5 | -0.0032 | -1.08 | 1.0000 | 0.3974 | -0.39 | 0.07 |
+| `log_dollar_volume_21d` | 21 | -0.0114 | -1.97 | 1.0000 | 0.0930 | -0.46 | 0.18 |
+| `dist_high_252d` | 1 | +0.0089 | +2.97 | 0.1140 | 0.0109 | -0.33 | 0.16 |
+| `dist_high_252d` | 5 | +0.0049 | +0.79 | 1.0000 | 0.5641 | -0.25 | 0.31 |
+| `dist_high_252d` | 21 | -0.0012 | -0.10 | 1.0000 | 0.9380 | -0.19 | 0.46 |
+| `trend_50d` | 1 | -0.0030 | -1.32 | 1.0000 | 0.3055 | -0.47 | 0.16 |
+| `trend_50d` | 5 | -0.0096 | -2.12 | 1.0000 | 0.0785 | -0.30 | 0.35 |
+| `trend_50d` | 21 | -0.0180 | -2.35 | 0.6167 | 0.0502 | -0.19 | 0.69 |
+| `trend_200d` | 1 | +0.0070 | +2.53 | 0.3933 | 0.0328 | -0.19 | 0.08 |
+| `trend_200d` | 5 | +0.0043 | +0.75 | 1.0000 | 0.5743 | -0.12 | 0.17 |
+| `trend_200d` | 21 | -0.0023 | -0.22 | 1.0000 | 0.8743 | -0.09 | 0.36 |
+| `overnight_ret` | 1 | -0.0022 | -1.03 | 1.0000 | 0.4108 | -0.15 | 0.84 |
+| `overnight_ret` | 5 | -0.0038 | -2.05 | 1.0000 | 0.0885 | -0.20 | 0.86 |
+| `overnight_ret` | 21 | -0.0031 | -1.80 | 1.0000 | 0.1275 | -0.24 | 0.87 |
+| `intraday_ret` | 1 | -0.0087 | -4.19 | 0.0013 | 0.0002 | -0.75 | 0.85 |
+| `intraday_ret` | 5 | -0.0106 | -5.37 | <0.0001 | <0.0001 | -0.63 | 0.86 |
+| `intraday_ret` | 21 | -0.0062 | -3.05 | 0.0892 | 0.0090 | -0.02 | 0.86 |
+
+</details>
+
+## Data attribution
+
+Data from Sharadar: Core US Equities Bundle (SEP prices, S&P 500 constituents,corporate actions). 
+Licensed data is not redistributed; `data/raw` and `data/processed` are gitignored.
+
 ## Tests
 
 `pytest` runs offline (HTTP is mocked, features use synthetic prices). The key test checks that
