@@ -340,6 +340,101 @@ linear models lose in 2007-09, when momentum crashed.
 - **Excluding delisting exits** leaves the best model's IC unchanged.
 - All figures are gross. Transaction costs and portfolio construction are not modelled yet.
 
+## Portfolio construction and costs: design
+
+Do the out-of-sample forecasts survive realistic portfolio construction and transaction costs? The design is fixed in
+[`configs/portfolio.yaml`](configs/portfolio.yaml) and was committed before any portfolio return was computed.
+`src.portfolio.load_portfolio_config` rejects unknown or missing keys, wrong types, methods the design does not define,
+signal columns the predictions file lacks, and horizons or a lag that disagree with `configs/features.yaml`,
+`configs/research.yaml` and `configs/models.yaml`. The future runner will use the same guard as the other runners
+(`src.utils.provenance`): it does not start unless the config is committed and unmodified.
+
+### Why turnover is the central question
+
+- **The forecast is weak and not better than reversal.** LightGBM on the 5-day rank target is the only Holm-significant
+  predictor (IC 0.0174, NW t 3.50), but its edge over B0 reversal (IC 0.0123) is +0.005 with t 1.0, and none of the 36
+  paired comparisons is significant.
+- **The gross spreads are small.** Beta-hedged D10 - D1 per 5 days: LightGBM 13.2 bp (t 1.4), B0 22.3 bp (t 1.9).
+- **Turnover is high.** One-way leg turnover per rebalance: LightGBM 0.54 (D1) / 0.75 (D10), B0 0.88 / 0.86.
+- **So break-even is low.** Spread / (2 x both legs' turnover) gives about 5 bp per side for LightGBM and 6 bp for
+  B0, ignoring the hedge's trading. The diagnostics found about 4 bp per side for 5-day reversal since mid-2010.
+  Commission plus half-spread alone (2.5 bp) uses about half of that before any market impact. A construction
+  that trades less is therefore worth more than a better forecast.
+
+### Design
+
+- **Signals** (columns of `data/processed/oof_predictions.parquet`):
+  - Primary: `lightgbm_h5_rank`.
+  - Benchmarks, with identical construction and costs: `B0_reversal_h5` and `B1_composite_h5`.
+  - Low-turnover variant: `lightgbm_h21_rank` (IC 0.006, t 0.93, so not significant). It tests whether slower
+    trading pays for a weaker signal.
+- **Sample and tuning.**
+  - OOS predictions run from 2007-01-03 to the last research date (2021-11-30).
+  - Portfolio hyperparameters (λ_risk, λ_tc) are chosen on 2007-2013 only.
+  - The evaluation window runs from 2014-01-02 to the research end and is reported as the clean result.
+  - The 2022+ holdout is untouched. `oof_predictions.parquet` ends at the research end, so evaluating the holdout
+    later will need a model refit.
+  - The return series starts once every tranche holds positions.
+- **Timing, as in the labels.**
+  - The score is known at the close of `t`; the trade happens at the close of `t + 1`.
+  - Daily P&L uses `ret_1d` (`closeadj`), with weights drifting between rebalances.
+  - The panel only has rows for index members, so a held name that leaves the index (or stops trading) earns 0 on
+    the days it has no row. The rest of its return, from its `fwd_ret_{h}d` label, is booked on the tranche's exit day.
+    Each tranche's h-day return therefore equals the labels exactly, delisting exits at the last price included,
+    using only `load_research_panel`.
+  - A held name with no score at its tranche's next rebalance is sold.
+- **Rebalancing.** h staggered tranches (5 for h=5, 21 for h=21), each with 1/h of capital and its own offset, so the
+  result does not depend on the offset (the diagnostics found h=21 spreads moving a lot with the offset). Exactly one
+  tranche trades per day.
+- **Construction ladder.** Every rung is dollar-neutral, with $1 long and $1 short per $1 of capital.
+  - `decile_ls`: equal weight, long the top decile and short the bottom decile. It is not beta-hedged, so its gross
+    returns are not directly comparable to the beta-hedged spreads above.
+  - `neutral_volscaled`:
+    - Weights are proportional to z(score) / `vol_63d`, with each leg set by the sign of the score.
+    - The weights are then projected onto {Σw = 0, β'w = 0} with `beta_252d`. Scaling the two legs separately cannot
+      make dollar and beta exposure zero together unless both legs have the same beta.
+    - Finally the book is scaled to a 10% annualised ex-ante vol, with gross capped at 2.
+  - `optimised`: maximise α'w − λ_risk·h·w'Σw − λ_tc·cost(trades).
+    - Constraints: dollar-neutral, |β| ≤ 0.05, |w_i| ≤ 2%, gross ≤ 2, and each trade ≤ 5% of `dollar_volume_21d`.
+    - Alpha is Grinold's IC·σ_i·z_i. The IC is the mean daily IC on each fold's purged two-year validation block,
+      which is known before the test year, floored at 0. A single IC per fold only rescales alpha against the λ
+      grid, so only its change from year to year matters.
+    - Σ is Ledoit-Wolf on 252 trailing daily returns. A name needs 80% of that window, so recent index joiners cannot
+      be held that day.
+    - (λ_risk, λ_tc) come from a 4 x 4 grid, chosen per signal by net Sharpe on 2007-2013 and kept fixed in every
+      cost and AUM scenario.
+    - Solved with cvxpy / Clarabel, because the square-root impact term makes trading cost scale with trade size to
+      the power 1.5.
+  - Sector neutrality is declared as a robustness variant but switched off. The panel has no sector field, and
+    Sharadar's sector is today's classification, not point in time.
+- **Costs, per side, as a share of traded notional.**
+  - Commission 0.5 bp and half-spread 2 bp (there is no quote data).
+  - Square-root impact Y·σ_daily·sqrt(trade $ / ADV $), with Y = 1, σ_daily = `vol_63d` and
+    ADV = `dollar_volume_21d`.
+  - Borrow of 25 bp a year on short notional. Cash earns 0, because returns are excess returns.
+  - Base AUM is a constant nominal $100m. Member dollar volume grew about 10x over the sample, so early years are
+    relatively harder to trade.
+  - Scenarios: cost multipliers {0, 0.5, 1, 2, 3} and AUM {$10m, $100m, $1bn}. `optimised` is re-run with the
+    scaled costs in its objective.
+- **Statistics.** Daily net and gross returns per $ of capital. Sharpe is annualised by sqrt(252). NW t uses
+  `max(h, plug-in)` lags because the tranches overlap. Turnover is one-way per year.
+
+### Headline result (declared before any portfolio return exists)
+
+The annualised net Sharpe and NW t of `optimised` on `lightgbm_h5_rank`, at base costs and $100m, over 2014-01-02 to
+the research end. Reported alongside it:
+
+- the same for `B0_reversal_h5` under identical settings;
+- the gross Sharpe;
+- annual turnover;
+- the break-even cost multiplier: the multiplier at which the mean net return is zero, computed after the fact at
+  the base-case trades.
+
+A null or negative result is reported as such.
+
+**Outputs.** The future runner writes tidy CSVs, `figures/` and `run_metadata.json` to `reports/portfolio/`, and daily
+returns and weights to `data/processed/` (gitignored).
+
 ## Data attribution
 
 Data from Sharadar: Core US Equities Bundle (SEP prices, S&P 500 constituents,corporate actions). 
@@ -357,4 +452,6 @@ The modelling tests check that every walk-forward fold is purged (no training la
 training label reaches validation), that Ridge and Elastic Net match scikit-learn, that the Fama-MacBeth forecast
 averages per-date slopes, and that LightGBM is deterministic. A runner smoke test on a synthetic panel recovers a
 planted reversal signal. The diagnostics tests cover the label-compounding check, the exact IC decomposition, the
-beta-hedged and robust spreads, and a hand-computed break-even example.
+beta-hedged and robust spreads, and a hand-computed break-even example. The portfolio-config tests load the real
+`configs/portfolio.yaml`, check that each validation rule rejects a bad config, and check in a temporary git repository
+that the provenance guard blocks an uncommitted or modified config.

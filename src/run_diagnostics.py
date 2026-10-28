@@ -42,7 +42,6 @@ from src.diagnostics import (  # noqa: E402
     spread_stats,
 )
 from src.metrics import newey_west_lag, newey_west_tstat, non_overlapping_positions  # noqa: E402
-from src.run_signal_research import provenance  # noqa: E402
 from src.signals import (  # noqa: E402
     RESEARCH_CONFIG_PATH,
     Grid,
@@ -56,7 +55,7 @@ from src.signals import (  # noqa: E402
     research_cutoff,
     turnover,
 )
-from src.utils import REPO_ROOT, load_config, winsorize_by_date  # noqa: E402
+from src.utils import REPO_ROOT, load_config, provenance, winsorize_by_date  # noqa: E402
 
 OUT_DIR = REPO_ROOT / "reports" / "diagnostics"
 REFERENCE_DIR = REPO_ROOT / "reports" / "signal_research"

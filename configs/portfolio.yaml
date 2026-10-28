@@ -1,0 +1,144 @@
+# Portfolio construction and cost design, fixed before any portfolio return is computed.
+# Question: do the out-of-sample forecasts in data/processed/oof_predictions.parquet survive
+# realistic portfolio construction and transaction costs? A null or negative result is reported as
+# such. Data only through src.signals.load_research_panel and the OOS predictions; holdout,
+# embargo, lag, NW lag rule and quantiles come from configs/research.yaml and
+# configs/features.yaml, unchanged. Choices below follow reports/diagnostics/SUMMARY.md and
+# reports/models/ (see "Portfolio construction and costs: design" in README.md).
+
+research_config: configs/research.yaml
+features_config: configs/features.yaml
+models_config: configs/models.yaml
+predictions: data/processed/oof_predictions.parquet   # written by src.run_models (gitignored)
+
+# Columns of the predictions file, named by src.run_models.column_name(predictor, horizon, variant).
+signals:
+  lightgbm_h5_rank:  {predictor: lightgbm,     horizon: 5,  variant: rank, role: primary}
+    # the only Holm-significant IC (0.0174, NW t 3.50)
+  B0_reversal_h5:    {predictor: B0_reversal,  horizon: 5,  variant: null, role: benchmark}
+    # one-feature reversal; LightGBM's IC edge over it is not significant (t 1.0)
+  B1_composite_h5:   {predictor: B1_composite, horizon: 5,  variant: null, role: benchmark}
+  lightgbm_h21_rank: {predictor: lightgbm,     horizon: 21, variant: rank, role: low_turnover_variant}
+    # IC not significant (t 0.93); traded to see whether lower turnover pays for the weaker signal
+
+sample:
+  start: first_oos_date            # 2007-01-03, the first walk-forward test date
+  end: last_research_date          # 2021-11-30; tranches still open run to their label end (< holdout)
+  split_date: "2014-01-01"         # tuning = dates before it (2007-2013): the only data that may choose
+                                   # lambda_risk / lambda_tc; evaluation = first trading day on or after it
+                                   # (2014-01-02) to the research end. The 2022+ holdout is untouched.
+  ramp_up: all_tranches_invested   # the return series starts once all h tranches hold positions
+
+timing:                            # identical to the labels
+  lag: 1                           # score known at the close of t, traded at the close of t + lag;
+                                   # must equal labels.lag in configs/features.yaml
+  execution: close
+  daily_return: ret_1d             # closeadj close-to-close return of day d, from the panel row (d, i)
+  drift: buy_and_hold              # weights drift with returns between a tranche's rebalances
+  missing_daily_return: label_residual
+    # a held name without a panel row on day d (left the index, or stopped trading) earns 0 that day;
+    # the rest of its return, (1 + fwd_ret_{h}d at its score row) / prod(observed 1 + ret_1d) - 1, is
+    # booked on the tranche's exit day, so each tranche's h-day return equals the labels exactly
+  terminal_exit: last_price        # inherited from the labels: a delisted stock exits at its last price
+  unscored_holding: sell_at_rebalance   # a held name with no score at the tranche's next score date is sold
+
+rebalancing:
+  scheme: staggered_tranches       # h tranches, each with 1/h of capital; tranche k rebalances on OOS
+                                   # days k, k + h, k + 2h, ... so results do not depend on the offset
+  n_tranches: horizon              # 5 for h = 5, 21 for h = 21; exactly one tranche trades per day
+  capital: equal
+
+universe:
+  scored: true                     # names with a panel row and a finite score at the score date
+  score_transform: zscore_by_date  # per-date standardised score (src.utils.zscore_by_date)
+
+risk_model:                        # used by neutral_volscaled (vol target) and optimised (risk term)
+  estimator: ledoit_wolf           # sklearn.covariance.LedoitWolf, refit at every rebalance
+  window: 252                      # trailing daily ret_1d up to and including the score date
+  min_obs_frac: 0.8                # as features.min_obs_frac; names with less member-day history
+                                   # (recent index joiners) cannot be held by optimised that day
+  missing: zero_after_demeaning    # missing returns inside the window set to the name's window mean
+
+constructions:                     # every construction is dollar-neutral, $1 long + $1 short per $1 capital
+  decile_ls:
+    quantiles: from_research_config     # 10: long the top decile, short the bottom decile of the score
+    weighting: equal
+    gross_leverage: 2.0
+    beta_hedge: false              # dollar-neutral only; the beta-hedged spreads in reports/models are
+                                   # therefore not directly comparable to its gross returns
+  neutral_volscaled:
+    weighting: score_over_vol      # w_i proportional to z_i / vol_i; legs by the sign of z_i
+    vol_feature: vol_63d
+    beta_feature: beta_252d
+    neutralise: project_out_dollar_and_beta   # least-change projection of w onto {sum w = 0, beta'w = 0}
+    target_vol_annual: 0.10        # ex-ante, from the risk model
+    max_gross: 2.0                 # the vol target is scaled down if it needs more than $2 gross
+  optimised:
+    # maximise alpha'w - lambda_risk * h * w' Sigma w - lambda_tc * cost(trades); alpha is an h-day
+    # forecast, so risk is h-day variance and lambda_tc = 1 charges each cost once against h days of alpha
+    alpha:
+      model: grinold               # alpha_i = IC * vol_i * z_i
+      vol_feature: vol_63d
+      ic_source: validation_block  # per fold, the mean daily IC on that fold's purged two-year
+                                   # validation block (known before the test year); models: validation_ic
+                                   # of the chosen hyperparameters, B0 / B1: computed from the panel
+      ic_table: reports/models/hyperparameters.csv
+      ic_floor: 0.0                # a negative validation IC gives zero alpha (the book stays hedged and flat)
+    constraints:
+      dollar_neutral: true
+      max_abs_beta: 0.05           # ex-ante, beta_252d
+      beta_feature: beta_252d
+      max_weight: 0.02             # |w_i| per $ of the tranche's capital
+      max_gross: 2.0
+      max_trade_adv_frac: 0.05     # |trade_i| <= 5% of dollar_volume_21d at the AUM of the run
+    lambda_risk: [3.0, 10.0, 30.0, 100.0]   # 10 ~ 10% annual vol unconstrained for IC 0.017 and ~500 names
+    lambda_tc: [0.5, 1.0, 2.0, 4.0]
+    selection:
+      metric: net_sharpe           # annualised Sharpe of daily net returns at base costs and base AUM
+      window: tuning               # 2007-2013 only; chosen per signal, same grid and rule for all signals
+      ties: first_in_config_order
+      reuse_in_scenarios: true     # cost and AUM scenarios keep the base-case lambdas
+    solver: {package: cvxpy, name: CLARABEL}   # the sqrt impact term is a power-1.5 cone; cvxpy is
+                                   # added to requirements.txt together with the runner
+  sector_neutral:                  # robustness variant, off: the panel has no sector field, and
+    enabled: false                 # Sharadar's sector is today's classification, not point in time
+
+costs:                             # per side, in bp of traded notional; scaled together by the multiplier
+  commission_bps: 0.5
+  half_spread_bps: 2.0             # no quote data; a flat estimate for S&P 500 names
+  impact:
+    model: square_root             # Y * sigma_daily * sqrt(trade $ / ADV $), as a fraction of the trade
+    y: 1.0
+    vol_feature: vol_63d           # sigma_daily
+    adv_feature: dollar_volume_21d # nominal USD, close * volume
+  borrow_bps_per_year: 25.0        # on short notional, accrued daily (/ trading_days)
+  cash_rate: 0.0                   # returns are excess returns
+  base_aum_usd: 100000000          # constant nominal AUM over 2007-2021
+  scenarios:
+    cost_multipliers: [0.0, 0.5, 1.0, 2.0, 3.0]   # optimised is re-run with the scaled costs in its objective
+    aum_usd: [10000000, 100000000, 1000000000]
+  breakeven: ex_post_at_base_trades   # multiplier m with mean gross = m * mean base cost (incl. borrow),
+                                   # trades held at the base-case run
+
+statistics:
+  frequency: daily                 # net and gross daily returns per $ of capital
+  trading_days: from_research_config   # Sharpe = mean / sd * sqrt(252)
+  newey_west: from_research_config     # max(h, plug-in) lags on the daily series (tranches overlap)
+  turnover: one_way_annual         # sum over days of 0.5 * sum_i |trade_i| per $ capital, per year
+
+# Declared before any portfolio return exists.
+headline:
+  signal: lightgbm_h5_rank
+  construction: optimised
+  cost_multiplier: 1.0
+  aum_usd: 100000000
+  window: evaluation               # 2014-01-02 to the research end
+  statistics: [net_sharpe, net_nw_t]
+  benchmark: B0_reversal_h5        # same construction, costs, AUM and window
+  alongside: [gross_sharpe, annual_turnover, breakeven_cost_multiplier]
+
+outputs:                           # written by the future portfolio runner; nothing exists yet
+  reports_dir: reports/portfolio   # tidy CSVs and run_metadata.json
+  figures_dir: reports/portfolio/figures
+  daily_returns: data/processed/portfolio_daily_returns.parquet   # gitignored
+  weights: data/processed/portfolio_weights.parquet               # gitignored

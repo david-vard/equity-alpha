@@ -55,7 +55,6 @@ from src.models import (  # noqa: E402
     primary_variant,
     rank_target,
 )
-from src.run_signal_research import provenance  # noqa: E402
 from src.signals import (  # noqa: E402
     RESEARCH_CONFIG_PATH,
     Grid,
@@ -68,7 +67,7 @@ from src.signals import (  # noqa: E402
     panel_path,
     research_cutoff,
 )
-from src.utils import REPO_ROOT, load_config  # noqa: E402
+from src.utils import REPO_ROOT, load_config, provenance  # noqa: E402
 from src.validation import Fold, position_mask, thin, walk_forward_folds  # noqa: E402
 
 OUT_DIR = REPO_ROOT / "reports" / "models"

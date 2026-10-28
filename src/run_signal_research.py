@@ -11,10 +11,8 @@ figures and ``run_metadata.json`` to ``reports/signal_research/``. The run refus
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import platform
-import subprocess
 import time
 from pathlib import Path
 from typing import Any
@@ -55,48 +53,9 @@ from src.signals import (
 )
 from src.metrics import non_overlapping_positions
 from src.signal_report import headline_table
-from src.utils import DEFAULT_CONFIG_PATH, REPO_ROOT, load_config
+from src.utils import REPO_ROOT, load_config, provenance
 
 OUT_DIR = REPO_ROOT / "reports" / "signal_research"
-
-
-def file_sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with open(path, "rb") as handle:
-        for block in iter(lambda: handle.read(1 << 24), b""):
-            digest.update(block)
-    return digest.hexdigest()
-
-
-def provenance(config: Path, features_config: Path | None, panel_file: Path, allow_dirty: bool) -> dict[str, Any]:
-    """Identify a run: config commit and hash, code revision, feature-config and panel hashes.
-
-    Refuses to run unless the research config is committed and unmodified (the design is fixed
-    before results); the state of the rest of the code is recorded, not enforced.
-    """
-
-    def git(*args: str) -> str:
-        done = subprocess.run(["git", *args], cwd=REPO_ROOT, capture_output=True, text=True)
-        return done.stdout.strip() if done.returncode == 0 else ""
-
-    rel = str(config.resolve().relative_to(REPO_ROOT)) if config.resolve().is_relative_to(REPO_ROOT) else str(config)
-    sha, dirty = git("log", "-1", "--format=%H", "--", rel), git("status", "--porcelain", "--", rel)
-    if (not sha or dirty) and not allow_dirty:
-        raise SystemExit(
-            f"{rel} must be committed and unmodified before the analysis runs; "
-            "commit it or pass --allow-dirty-config."
-        )
-    features_path = features_config or DEFAULT_CONFIG_PATH
-    return {
-        "config_commit": sha or None,
-        "config_dirty": bool(dirty) or not sha,
-        "config_sha256": file_sha256(config),
-        "code_commit": git("rev-parse", "HEAD") or None,
-        "code_dirty": bool(git("status", "--porcelain", "--", "src", "configs")),
-        "features_config_sha256": file_sha256(features_path),
-        "panel_sha256": file_sha256(panel_file),
-        "panel_bytes": panel_file.stat().st_size,
-    }
 
 
 def _tag(row: dict[str, Any], feature: str, h: int, spec: dict[str, Any]) -> dict[str, Any]:

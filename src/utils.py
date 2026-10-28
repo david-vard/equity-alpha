@@ -1,7 +1,9 @@
-"""Shared helpers: config loading, cross-sectional preprocessing, panel reshaping."""
+"""Shared helpers: config loading, run provenance, cross-sectional preprocessing, panel reshaping."""
 
 from __future__ import annotations
 
+import hashlib
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -81,6 +83,52 @@ def load_config(path: str | Path | None = None) -> dict[str, Any]:
     """Load and validate a YAML config (defaults to configs/features.yaml)."""
     with open(path or DEFAULT_CONFIG_PATH) as handle:
         return validate_config(yaml.safe_load(handle))
+
+
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for block in iter(lambda: handle.read(1 << 24), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def git(*args: str, repo_root: Path = REPO_ROOT) -> str:
+    """Stdout of a git command run in ``repo_root``; empty if git fails."""
+    done = subprocess.run(["git", *args], cwd=repo_root, capture_output=True, text=True)
+    return done.stdout.strip() if done.returncode == 0 else ""
+
+
+def provenance(
+    config: Path, features_config: Path | None, panel_file: Path, allow_dirty: bool,
+    repo_root: Path = REPO_ROOT,
+) -> dict[str, Any]:
+    """Identify a run: config commit and hash, code revision, feature-config and panel hashes.
+
+    Refuses to run unless the design config is committed and unmodified (the design is fixed
+    before results); the state of the rest of the code is recorded, not enforced. ``repo_root``
+    is only overridden by tests.
+    """
+    resolved = config.resolve()
+    rel = str(resolved.relative_to(repo_root)) if resolved.is_relative_to(repo_root) else str(config)
+    sha = git("log", "-1", "--format=%H", "--", rel, repo_root=repo_root)
+    dirty = git("status", "--porcelain", "--", rel, repo_root=repo_root)
+    if (not sha or dirty) and not allow_dirty:
+        raise SystemExit(
+            f"{rel} must be committed and unmodified before the analysis runs; "
+            "commit it or pass --allow-dirty-config."
+        )
+    features_path = features_config or DEFAULT_CONFIG_PATH
+    return {
+        "config_commit": sha or None,
+        "config_dirty": bool(dirty) or not sha,
+        "config_sha256": file_sha256(config),
+        "code_commit": git("rev-parse", "HEAD", repo_root=repo_root) or None,
+        "code_dirty": bool(git("status", "--porcelain", "--", "src", "configs", repo_root=repo_root)),
+        "features_config_sha256": file_sha256(features_path),
+        "panel_sha256": file_sha256(panel_file),
+        "panel_bytes": panel_file.stat().st_size,
+    }
 
 
 def warmup_days(cfg: dict[str, Any]) -> int:
