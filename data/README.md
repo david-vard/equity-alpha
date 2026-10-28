@@ -112,7 +112,7 @@ joins the index already has its trailing history; it restricts to members afterw
   member-days in 1999 (about 32 names a date, e.g. Wendy's, Brown-Forman), 2.3% in 2002, 0.4% in
   2005 and nothing after 2010, because member dollar volume grew about 10x (median $33m in 1999,
   $316m in 2025) and prices about 2x. A constant nominal threshold therefore changes the universe
-  definition over time. Liquidity and capacity are handled in the cost / portfolio stage;
+  definition over time. Liquidity and capacity are handled in portfolio construction and cost analysis;
   `universe.liquidity.min_avg_dollar_volume` in `configs/features.yaml` re-enables a cut-off for
   robustness checks.
 - **Sample start:** 1998-01 is the start of both SEP and the S&P 500 table.

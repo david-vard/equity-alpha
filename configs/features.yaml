@@ -15,14 +15,14 @@ universe:
 
 features:
   min_obs_frac: 0.8          # rolling stats need this fraction of the window to be non-missing
-  reversal_windows: [1, 5]             # ret_1d, ret_5d
-  momentum_windows: [21, 63, 126, 252] # ret_21d ... ret_252d
+  reversal_windows: [1, 5]
+  momentum_windows: [21, 63, 126, 252]
   momentum_12_1: {lookback: 252, skip: 21}   # return from t-252 to t-21
-  volatility_windows: [21, 63]         # vol_21d, vol_63d (std of daily returns, not annualised)
+  volatility_windows: [21, 63]
   beta_window: 252                     # beta vs equal-weighted S&P 500 member return
-  dollar_volume_window: 21             # dollar_volume_21d, log_dollar_volume_21d
+  dollar_volume_window: 21
   high_window: 252                     # dist_high_252d = price / rolling max - 1
-  trend_windows: [50, 200]             # trend_50d, trend_200d = price / simple moving average - 1
+  trend_windows: [50, 200]
 
 preprocessing:
   winsor_limits: [0.01, 0.99]          # per-date quantiles; applied to features, not labels

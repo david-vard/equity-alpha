@@ -1,0 +1,61 @@
+# Signal research design (python -m src.run_signal_research).
+
+holdout_start: "2022-01-01"   # research code never reads dates at or after this
+# Embargo = labels.lag + max(max horizon, decay.n_days) trading days.
+
+horizons: [1, 5, 21]          # must equal labels.horizons in configs/features.yaml
+trading_days: 252             # annualises non-overlapping h-day series by sqrt(252 / h)
+
+min_names_per_date: 100       # jointly non-null names needed for an IC, a sort or a regression
+quantiles: 10
+
+newey_west:
+  lag_rule: max_horizon_plugin   # max(h, floor(4 * (T / 100) ** (2 / 9))); non-overlapping series drop h
+
+multiple_testing:             # applied separately to the IC, long-short and univariate FM tables
+  methods: [holm, bh, by]
+  alpha: 0.05
+  t_threshold: 3.0            # flag |t| above this regardless of adjustment
+
+portfolios:
+  offset: 0                   # first rebalance row of the every-h-th-date sample
+
+decay:
+  n_days: 21                  # k = 0..20: the 21 daily returns of the longest holding window
+  half_life_min_abs_t: 2.0    # half-life reported only if |NW t| of the k = 0 IC reaches this
+
+periods:                      # IC stability; post2020 is cut at the research end
+  dotcom: ["1999-01-01", "2002-12-31"]
+  gfc: ["2007-01-01", "2009-12-31"]
+  y2010_2019: ["2010-01-01", "2019-12-31"]
+  post2020: ["2020-01-01", "2099-12-31"]
+  halves: median_date
+
+fama_macbeth:
+  multivariate_representatives:   # one per family, fixed in advance
+    reversal: ret_5d
+    momentum: mom_12_1
+    risk: vol_63d
+    liquidity_size: log_dollar_volume_21d
+    trend: dist_high_252d
+    overnight_intraday: overnight_ret
+
+# expected_sign: sign prior for the IC (0 = none), one per feature across horizons; descriptive only.
+signals:
+  ret_1d:                {family: reversal,           expected_sign: -1}
+  ret_5d:                {family: reversal,           expected_sign: -1}
+  ret_21d:               {family: reversal,           expected_sign: 0}
+  ret_63d:               {family: momentum,           expected_sign: 1}
+  ret_126d:              {family: momentum,           expected_sign: 1}
+  ret_252d:              {family: momentum,           expected_sign: 1}
+  mom_12_1:              {family: momentum,           expected_sign: 1}
+  vol_21d:               {family: risk,               expected_sign: -1}
+  vol_63d:               {family: risk,               expected_sign: -1}
+  beta_252d:             {family: risk,               expected_sign: 0}
+  dollar_volume_21d:     {family: liquidity_size,     expected_sign: 0}
+  log_dollar_volume_21d: {family: liquidity_size,     expected_sign: 0}
+  dist_high_252d:        {family: trend,              expected_sign: 1}
+  trend_50d:             {family: trend,              expected_sign: 1}
+  trend_200d:            {family: trend,              expected_sign: 1}
+  overnight_ret:         {family: overnight_intraday, expected_sign: 0}
+  intraday_ret:          {family: overnight_intraday, expected_sign: 0}
