@@ -432,8 +432,44 @@ the research end. Reported alongside it:
 
 A null or negative result is reported as such.
 
-**Outputs.** The future runner writes tidy CSVs, `figures/` and `run_metadata.json` to `reports/portfolio/`, and daily
+**Outputs.** The runner writes tidy CSVs, `figures/` and `run_metadata.json` to `reports/portfolio/`, and daily
 returns and weights to `data/processed/` (gitignored).
+
+### Running the portfolio backtest
+
+Run the two modes in order:
+
+```bash
+python -m src.run_portfolio --tune       # (lambda_risk, lambda_tc) per signal on 2007-2013 -> reports/portfolio/tuning/
+python -m src.run_portfolio --evaluate   # every signal x construction x cost scenario, frozen lambdas -> reports/portfolio/
+```
+
+- **`--tune`** reads no panel row, prediction or label later than the last trading day before the split date. It
+  writes:
+  - `lambda_grid.csv` (every grid point, with its fallback counts);
+  - `selected_hyperparameters.csv`;
+  - its own `run_metadata.json`.
+- **`--evaluate`** refuses to start if there is no tuning output, or if the tuning output was made with another
+  version of `configs/portfolio.yaml`. It runs the whole sample and writes:
+  - `summary.csv`: statistics per signal, construction, cost scenario and window (tuning, evaluation, full);
+  - `headline.csv`: the pre-declared headline rows;
+  - `fallbacks.csv`: optimiser fallbacks per run;
+  - `figures/cumulative_net_<signal>.png`;
+  - `run_metadata.json`;
+  - `data/processed/portfolio_daily_returns.parquet`: per-tranche and total daily accounting;
+  - `data/processed/portfolio_weights.parquet`: target weights, trades and their costs per rebalance.
+- **Both modes** refuse to start unless `configs/portfolio.yaml`, `configs/research.yaml` and the feature config are
+  committed and unmodified (`--allow-dirty-config` overrides). `--signals` and `--constructions` run a subset.
+- **Runtime.** `optimised` solves one cvxpy / Clarabel problem per rebalance, about 0.5 s at 500 names, so one
+  full-sample run of it takes roughly half an hour.
+
+The engine ([`src/backtest.py`](src/backtest.py)) uses the constructions in [`src/portfolio.py`](src/portfolio.py)
+and the cost model in [`src/costs.py`](src/costs.py). The optimiser's cost term and the accounting use the same cost
+coefficients. If the solver fails, returns an infeasible problem or gives a solution that breaks a constraint, the
+tranche falls back to one of the following, and every fallback is logged and counted:
+1. its current weights, neutralised and scaled into the caps, if the ADV cap allows that trade;
+2. otherwise flat;
+3. otherwise each name moved towards zero as far as the ADV cap allows, flagged as breaking the constraints.
 
 ## Data attribution
 
@@ -455,3 +491,14 @@ planted reversal signal. The diagnostics tests cover the label-compounding check
 beta-hedged and robust spreads, and a hand-computed break-even example. The portfolio-config tests load the real
 `configs/portfolio.yaml`, check that each validation rule rejects a bad config, and check in a temporary git repository
 that the provenance guard blocks an uncommitted or modified config.
+
+The cost tests check a hand-computed trade (commission, spread, impact and borrow), the participation cap, and that
+cost scenarios scale linearly. The construction tests check decile selection with ties and NaN, the ex-ante vol target,
+the optimiser constraints and each fallback path. The backtest tests run on small synthetic panels and check:
+- the accounting identities, and that tranches sum to the total;
+- exact drift between rebalances;
+- terminal exits at the last price, charged once;
+- no lookahead: inputs after `t` cannot change anything up to `t`;
+- that zero-cost `decile_ls` reproduces the research D10 - D1 spread;
+- the holdout guard;
+- that `--tune` gives identical results when everything after the tuning window is poisoned.

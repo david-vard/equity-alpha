@@ -1,26 +1,37 @@
-"""Portfolio construction and cost design: loader and validation of ``configs/portfolio.yaml``.
+"""Portfolio construction: the ``configs/portfolio.yaml`` loader and the three constructions.
 
 The design is fixed in the config before any portfolio return exists. The loader is strict: an
 unknown or missing key, a wrong type, a method the design does not define, a signal column the
 predictions file does not have, or a horizon / lag that disagrees with ``configs/features.yaml``,
 ``configs/research.yaml`` or ``configs/models.yaml`` is an error, never silently ignored.
+
+Each construction maps one date's scores (plus beta, vol, ADV, the risk model and the current
+weights) to target weights per $ of the capital that holds them: ``decile_ls``,
+``neutral_volscaled`` and ``optimised``. ``*_builder`` functions bind a construction to the
+config and to the backtest's market data (``src.backtest.MarketData``).
 """
 
 from __future__ import annotations
 
+import logging
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
+import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
 import yaml
+from sklearn.covariance import ledoit_wolf_shrinkage
 
+from src.costs import CostModel, cost_coefficients, max_trade_weight
 from src.models import BASELINES, MODEL_NAMES, load_models_config
 from src.run_models import column_name
-from src.signals import embargo_days, load_research_config
+from src.signals import embargo_days, load_research_config, quantile_buckets
 from src.utils import REPO_ROOT, load_config
 
 PORTFOLIO_CONFIG_PATH = REPO_ROOT / "configs" / "portfolio.yaml"
+log = logging.getLogger(__name__)
 CONSTRUCTIONS = ("decile_ls", "neutral_volscaled", "optimised")
 ROLES = ("primary", "benchmark", "low_turnover_variant")
 UNVARIED = ("B0_reversal", "B1_composite")  # baselines without a target variant
@@ -334,3 +345,312 @@ def evaluation_start(cfg: dict[str, Any], dates: pd.DatetimeIndex) -> pd.Timesta
     if pos == len(dates):
         raise ValueError("no trading date on or after sample.split_date")
     return dates[pos]
+
+
+# --------------------------------------------------------------------------- shared pieces
+
+TOL = 1e-6  # constraint tolerance on weights per $ of capital (solver accuracy)
+FALLBACKS = ("hold", "flat", "partial")
+
+
+@dataclass(frozen=True)
+class Target:
+    """Target weights of one rebalance; ``fallback`` names the fallback used, if any."""
+
+    weights: np.ndarray
+    fallback: str | None = None
+    status: str = "ok"
+
+
+@dataclass(frozen=True)
+class RiskModel:
+    """Ledoit-Wolf covariance kept in factored form: ``(1 - d) X'X / T + d * mu * I``.
+
+    ``X`` holds the window's daily returns demeaned per name, missing returns set to 0 (the name's
+    window mean), so the sample covariance is ``X'X / T``.
+    """
+
+    X: np.ndarray
+    shrinkage: float
+    mu: float
+
+    @property
+    def n_obs(self) -> int:
+        return self.X.shape[0]
+
+    def covariance(self) -> np.ndarray:
+        sample = self.X.T @ self.X / self.n_obs
+        return (1 - self.shrinkage) * sample + self.shrinkage * self.mu * np.eye(self.X.shape[1])
+
+    def variance(self, w: np.ndarray) -> float:
+        """Daily ex-ante variance of weights ``w``."""
+        xw = self.X @ w
+        return float((1 - self.shrinkage) * (xw @ xw) / self.n_obs + self.shrinkage * self.mu * (w @ w))
+
+    def subset(self, keep: np.ndarray) -> "RiskModel":
+        """The same shrunk covariance restricted to some names (a principal submatrix)."""
+        return RiskModel(self.X[:, keep], self.shrinkage, self.mu)
+
+
+def ledoit_wolf_risk(window: np.ndarray, min_obs_frac: float) -> tuple[RiskModel, np.ndarray]:
+    """Risk model from a ``T x n`` window of daily returns (NaN = no panel row) and the mask of
+    names with at least ``min_obs_frac`` of the window observed."""
+    window = np.asarray(window, dtype="float64")
+    observed = np.isfinite(window)
+    n_obs = observed.sum(axis=0)
+    covered = n_obs >= min_obs_frac * window.shape[0]
+    with np.errstate(invalid="ignore", divide="ignore"):
+        mean = np.where(n_obs > 0, np.where(observed, window, 0.0).sum(axis=0) / n_obs, 0.0)
+    X = np.where(observed, window - mean, 0.0)
+    n = X.shape[1]
+    sample_trace = float((X * X).sum()) / max(X.shape[0], 1)
+    mu = sample_trace / n if n else 0.0
+    shrinkage = float(ledoit_wolf_shrinkage(X, assume_centered=True)) if X.shape[0] > 1 and n > 1 else 1.0
+    return RiskModel(X, shrinkage, mu), covered
+
+
+def zscore(score: np.ndarray) -> np.ndarray:
+    """Standardise the finite values (mean 0, sample sd 1, as ``src.utils.zscore_by_date``); NaN elsewhere."""
+    score = np.asarray(score, dtype="float64")
+    ok = np.isfinite(score)
+    out = np.full(score.shape, np.nan)
+    if ok.sum() > 1:
+        sd = score[ok].std(ddof=1)
+        if sd > 0:
+            out[ok] = (score[ok] - score[ok].mean()) / sd
+    return out
+
+
+def neutralise(w: np.ndarray, beta: np.ndarray) -> np.ndarray:
+    """Least-change projection of ``w`` onto ``{sum w = 0, beta'w = 0}``."""
+    A = np.column_stack([np.ones(len(w)), beta])
+    coef, *_ = np.linalg.lstsq(A, w, rcond=None)
+    return w - A @ coef
+
+
+# --------------------------------------------------------------------------- constructions
+
+
+def decile_ls(score: np.ndarray, quantiles: int, min_names: int, gross: float = 2.0) -> np.ndarray:
+    """Equal weight, long the top and short the bottom quantile of ``score`` ($gross / 2 per leg).
+
+    Buckets come from ``src.signals.quantile_buckets`` (tied scores share a bucket, NaN is
+    excluded, fewer than ``min_names`` scores gives no position).
+    """
+    buckets = quantile_buckets(pd.DataFrame([np.asarray(score, dtype="float64")]), quantiles, min_names)
+    b = buckets.to_numpy(dtype="float64")[0]
+    w = np.zeros(len(b))
+    for leg, sign in ((quantiles - 1, 1.0), (0, -1.0)):
+        member = b == leg
+        if member.any():
+            w[member] = sign * gross / 2 / member.sum()
+    if not (w > 0).any() or not (w < 0).any():
+        return np.zeros(len(b))
+    return w
+
+
+def neutral_volscaled(
+    score: np.ndarray, vol: np.ndarray, beta: np.ndarray, risk: RiskModel, target_vol_annual: float,
+    max_gross: float, min_names: int, trading_days: int,
+) -> np.ndarray:
+    """Weights proportional to z(score) / vol, projected to zero net dollars and zero beta, then
+    scaled to ``target_vol_annual`` ex-ante (``risk`` aligned with ``score``), gross capped at
+    ``max_gross``. Names without a score, vol or beta get 0."""
+    score, vol, beta = (np.asarray(a, dtype="float64") for a in (score, vol, beta))
+    ok = np.isfinite(score) & np.isfinite(vol) & (vol > 0) & np.isfinite(beta)
+    w = np.zeros(len(score))
+    if ok.sum() < max(min_names, 3):
+        return w
+    z = zscore(score[ok])
+    if not np.isfinite(z).all():
+        return w
+    w[ok] = neutralise(z / vol[ok], beta[ok])
+    ann_vol = np.sqrt(max(risk.variance(w), 0.0) * trading_days)
+    gross = np.abs(w).sum()
+    if ann_vol <= 0 or gross <= 0:
+        return np.zeros(len(score))
+    scale = min(target_vol_annual / ann_vol, max_gross / gross)
+    return w * scale
+
+
+def grinold_alpha(score: np.ndarray, vol: np.ndarray, ic: float, horizon: int) -> np.ndarray:
+    """h-day alpha ``IC * vol * sqrt(h) * z(score)``: ``vol`` is daily, so ``vol * sqrt(h)`` is the
+    volatility over the forecast horizon."""
+    return ic * np.asarray(vol, dtype="float64") * np.sqrt(horizon) * zscore(score)
+
+
+@dataclass(frozen=True)
+class OptimiserSpec:
+    """Objective weights and constraints of ``optimised`` for one (lambda_risk, lambda_tc)."""
+
+    horizon: int
+    lambda_risk: float
+    lambda_tc: float
+    max_abs_beta: float
+    max_weight: float
+    max_gross: float
+    max_trade_adv_frac: float
+    solver: str = "CLARABEL"
+
+    @classmethod
+    def from_config(cls, pcfg: dict[str, Any], horizon: int, lambda_risk: float, lambda_tc: float) -> "OptimiserSpec":
+        opt = pcfg["constructions"]["optimised"]
+        c = opt["constraints"]
+        return cls(horizon, float(lambda_risk), float(lambda_tc), float(c["max_abs_beta"]), float(c["max_weight"]),
+                   float(c["max_gross"]), float(c["max_trade_adv_frac"]), opt["solver"]["name"])
+
+
+def check_constraints(
+    w: np.ndarray, current: np.ndarray, beta: np.ndarray, max_dw: np.ndarray, free: np.ndarray,
+    spec: OptimiserSpec, tol: float = TOL,
+) -> dict[str, bool]:
+    """Which of the ``optimised`` constraints ``w`` satisfies. Names that are not ``free`` must be 0;
+    the ADV cap applies to free names (a forced sale is not capped)."""
+    b = np.where(free, beta, 0.0)
+    return {
+        "dollar_neutral": abs(w.sum()) <= tol,
+        "beta": abs(b @ w) <= spec.max_abs_beta + tol,
+        "max_weight": bool(np.all(np.abs(w) <= spec.max_weight + tol)),
+        "max_gross": np.abs(w).sum() <= spec.max_gross + tol,
+        "adv": bool(np.all(np.abs(w - current)[free] <= max_dw[free] + tol)),
+        "forced_zero": bool(np.all(w[~free] == 0)),
+    }
+
+
+def fallback_weights(
+    current: np.ndarray, beta: np.ndarray, max_dw: np.ndarray, free: np.ndarray, spec: OptimiserSpec,
+) -> Target:
+    """Weights when the optimiser fails, in order of preference:
+
+    1. ``hold``: the current weights (non-free names sold), projected to zero net dollars and beta,
+       then scaled down into the name cap and gross limit, if the ADV cap allows the trade;
+    2. ``flat``: all weights 0, if the ADV cap allows it;
+    3. ``partial``: each free name moved towards 0 by as much as the ADV cap allows. This is the
+       only output that may break dollar neutrality, beta or the caps; it is flagged as such.
+    """
+    hold = np.zeros(len(current))
+    if free.sum() >= 2:
+        hold[free] = neutralise(current[free], beta[free])
+    biggest, gross = np.abs(hold).max(initial=0.0), np.abs(hold).sum()
+    scale = min(1.0, spec.max_weight / biggest if biggest > 0 else 1.0, spec.max_gross / gross if gross > 0 else 1.0)
+    hold *= scale
+    if all(check_constraints(hold, current, beta, max_dw, free, spec).values()):
+        return Target(hold, "hold", "fallback")
+    flat = np.zeros(len(current))
+    if all(check_constraints(flat, current, beta, max_dw, free, spec).values()):
+        return Target(flat, "flat", "fallback")
+    partial = np.where(free, current - np.clip(current, -max_dw, max_dw), 0.0)
+    return Target(partial, "partial", "fallback_constraints_violated")
+
+
+def optimised(
+    alpha: np.ndarray, beta: np.ndarray, current: np.ndarray, max_dw: np.ndarray, free: np.ndarray,
+    risk: RiskModel, linear: np.ndarray, impact: np.ndarray, spec: OptimiserSpec,
+) -> Target:
+    """Maximise ``alpha'w - lambda_risk * h * w'Sigma w - lambda_tc * cost(w - current)``.
+
+    Subject to sum w = 0, |beta'w| <= max_abs_beta, |w_i| <= max_weight, sum |w| <= max_gross and
+    |w_i - current_i| <= max_dw_i for ``free`` names; every other name is sold (w = 0). ``risk`` is
+    aligned with the inputs (daily covariance); ``linear`` / ``impact`` come from
+    ``src.costs.cost_coefficients``. A solver error, a non-optimal status or a solution that breaks
+    a constraint gives ``fallback_weights``, logged.
+    """
+    import cvxpy as cp
+
+    n = len(current)
+    idx = np.flatnonzero(free)
+    if len(idx) < 2:
+        return fallback_weights(current, beta, max_dw, free, spec)
+    w = cp.Variable(len(idx))
+    dw = w - current[idx]
+    sub = risk.subset(idx)
+    risk_term = (1 - sub.shrinkage) * cp.sum_squares(sub.X @ w) / sub.n_obs + sub.shrinkage * sub.mu * cp.sum_squares(w)
+    cost_term = linear[idx] @ cp.abs(dw) + impact[idx] @ cp.power(cp.abs(dw), 1.5)
+    objective = cp.Maximize(alpha[idx] @ w - spec.lambda_risk * spec.horizon * risk_term - spec.lambda_tc * cost_term)
+    constraints = [
+        cp.sum(w) == 0,
+        cp.abs(beta[idx] @ w) <= spec.max_abs_beta,
+        cp.abs(w) <= spec.max_weight,
+        cp.norm1(w) <= spec.max_gross,
+        cp.abs(dw) <= max_dw[idx],
+    ]
+    problem = cp.Problem(objective, constraints)
+    try:
+        problem.solve(solver=spec.solver)
+        status = problem.status
+    except Exception as exc:  # solver errors must not stop the backtest; they are counted instead
+        status = f"error: {type(exc).__name__}"
+    if status in (cp.OPTIMAL, cp.OPTIMAL_INACCURATE) and w.value is not None and np.isfinite(w.value).all():
+        out = np.zeros(n)
+        out[idx] = w.value
+        if all(check_constraints(out, current, beta, max_dw, free, spec).values()):
+            return Target(out, None, status)
+        status = f"{status}, constraints violated"
+    target = fallback_weights(current, beta, max_dw, free, spec)
+    log.warning("optimiser %s: fallback %s", status, target.fallback)
+    return Target(target.weights, target.fallback, status)
+
+
+# --------------------------------------------------------------------------- builders
+
+# A builder maps (market data, score position s, current weights, capital $, cost model) to a Target.
+Builder = Callable[[Any, int, np.ndarray, float, CostModel], Target]
+
+
+def _window(data: Any, s: int, names: np.ndarray, window: int) -> np.ndarray:
+    """Trailing ``window`` daily returns up to and including date position ``s`` (rows before the
+    start of the data are simply absent)."""
+    return data.ret[max(0, s - window + 1): s + 1][:, names]
+
+
+def decile_builder(quantiles: int, min_names: int, gross: float) -> Builder:
+    def build(data: Any, s: int, current: np.ndarray, capital_usd: float, costs: CostModel) -> Target:
+        return Target(decile_ls(data.score[s], quantiles, min_names, gross))
+
+    return build
+
+
+def volscaled_builder(pcfg: dict[str, Any], min_names: int, trading_days: int) -> Builder:
+    spec, risk_cfg = pcfg["constructions"]["neutral_volscaled"], pcfg["risk_model"]
+
+    def build(data: Any, s: int, current: np.ndarray, capital_usd: float, costs: CostModel) -> Target:
+        names = np.flatnonzero(np.isfinite(data.score[s]))
+        w = np.zeros(len(current))
+        if len(names) >= min_names:
+            risk, _ = ledoit_wolf_risk(_window(data, s, names, risk_cfg["window"]), risk_cfg["min_obs_frac"])
+            w[names] = neutral_volscaled(data.score[s, names], data.vol[s, names], data.beta[s, names], risk,
+                                         spec["target_vol_annual"], spec["max_gross"], min_names, trading_days)
+        return Target(w)
+
+    return build
+
+
+def optimised_builder(
+    pcfg: dict[str, Any], spec: OptimiserSpec, ic_for: Callable[[int], float], min_names: int,
+) -> Builder:
+    """``ic_for(s)`` is the IC of the fold that contains score position ``s`` (already floored)."""
+    risk_cfg = pcfg["risk_model"]
+
+    def build(data: Any, s: int, current: np.ndarray, capital_usd: float, costs: CostModel) -> Target:
+        score, vol, beta, adv = data.score[s], data.vol[s], data.beta[s], data.adv[s]
+        scored = np.isfinite(score)
+        names = np.flatnonzero(scored | (current != 0))
+        if scored.sum() < min_names:  # no usable scores: every held name is sold
+            return Target(np.zeros(len(current)), None, "no_scores")
+        risk, covered = ledoit_wolf_risk(_window(data, s, names, risk_cfg["window"]), risk_cfg["min_obs_frac"])
+        sub = lambda a: np.asarray(a, dtype="float64")[names]  # noqa: E731
+        free = (np.isfinite(sub(score)) & np.isfinite(sub(vol)) & (sub(vol) > 0) & np.isfinite(sub(beta))
+                & np.isfinite(sub(adv)) & (sub(adv) > 0) & covered)
+        sigma, a = np.where(free, sub(vol), 0.0), np.where(free, sub(adv), np.inf)
+        alpha = np.zeros(len(names))
+        alpha[free] = grinold_alpha(sub(score)[free], sigma[free], ic_for(s), spec.horizon)
+        linear, impact = cost_coefficients(sigma, a, capital_usd, costs)
+        max_dw = max_trade_weight(np.where(free, sub(adv), np.nan), capital_usd, spec.max_trade_adv_frac)
+        b = np.where(free, sub(beta), 0.0)
+        target = optimised(alpha, b, sub(current), max_dw, free, risk, linear, impact, spec)
+        w = np.zeros(len(current))
+        w[names] = target.weights
+        return Target(w, target.fallback, target.status)
+
+    return build
+
