@@ -87,6 +87,76 @@ All windows are trading days (21 = 1 month, 63 = 3, 126 = 6, 252 = 12). `P` is `
 overnight/intraday split; the features are deliberately correlated, so evaluate them one at a
 time or after orthogonalisation.
 
+## Signal research
+
+Univariate baselines before any model. 
+
+- H0: a feature has **zero** mean cross-sectional Spearman IC with `fwd_ret_{h}d`
+- H1: a feature has **non-zero** mean cross-sectional Spearman IC with `fwd_ret_{h}d` 
+
+The design is fixed in [`configs/research.yaml`](configs/research.yaml)
+and was committed before any result was generated.
+
+```bash
+python -m src.run_signal_research     # tables, figures and run_metadata.json -> reports/signal_research/
+```
+
+The run does not start unless `configs/research.yaml` is committed and unmodified.
+`run_metadata.json` records the config commit and hash, code revision (and whether `src`/`configs`
+were dirty), hashes of the feature config and the panel, the research cutoff and package versions.
+Plots and narrative: [`notebooks/02_signal_research.ipynb`](notebooks/02_signal_research.ipynb).
+
+### Design
+
+- **Holdout and embargo.** `holdout_start = 2022-01-01`. The research sample ends
+  `lag + max(max horizon, decay.n_days) = 22` trading days before the first holdout date, so every
+  label and shifted return used ends strictly before the holdout. The last research date is derived
+  from the panel's trading calendar and written to `run_metadata.json`.
+  `src.signals.load_research_panel` is the only way research code reads the panel and never returns
+  later rows.
+- **Expected signs and families.** Each feature has a family and a sign prior for its IC
+  (+1 / -1, 0 = none) in the config. One sign per feature across horizons, so priors are loose
+  where the economics differ by horizon (e.g. `trend_50d` mixes reversal and momentum). Sign
+  consistency is a descriptive column and not part of any test. `ret_21d` is the monthly-reversal
+  signal (no prior); `beta_252d` and the dollar-volume features carry no prior because raw-return
+  evidence is mixed. Dollar volume proxies size and trading activity (the panel has no market cap).
+- **Primary test.** Newey-West t of the mean daily IC over all research dates: Bartlett kernel,
+  `max(h, floor(4 (T/100)^(2/9)))` lags because h-day labels overlap, two-sided normal p-values
+  (slightly anti-conservative on the ~270-point non-overlapping series). Statistics on
+  non-overlapping series (every h-th date, offset 0 and averaged over all h offsets) use the
+  plug-in lag only.
+- **Multiple testing.** Holm, Benjamini-Hochberg and Benjamini-Yekutieli (BH assumes positive
+  dependence, BY does not) at `alpha = 0.05`, plus a flag for |t| > 3. Three separate families of
+  17 x 3 = 51 tests, each adjusted on its own and not pooled: (1) the IC t-tests (primary),
+  (2) the gross long-short spreads, (3) the univariate Fama-MacBeth slopes. The multivariate
+  Fama-MacBeth is not adjusted. `dollar_volume_21d` and `log_dollar_volume_21d` are rank-identical,
+  so the effective family has 48 tests; `*_eff` columns give that adjustment.
+- **Annualisation.** Sharpe ratios and IC IR of non-overlapping h-day series are scaled by
+  `sqrt(252 / h)`. `ic_ir` in `ic_summary.csv` is per date and not annualised. Fama-MacBeth
+  coefficients are per h-day return per 1 SD of the feature, not annualised.
+- **Portfolios.** Equal-weight deciles on the raw feature; tied values share a bucket (so
+  `dist_high_252d`, which is exactly 0 at a new high, gives unequal deciles) and NaN is excluded.
+  Rebalance every h-th date. Long-short columns are prefixed `gross_` (no costs). Turnover is the
+  one-way turnover of the bottom (D1) and top (D10) legs by feature value, so for a negative
+  expected sign the long leg is D1.
+- **Decay.** IC of the feature at `t` against the 1-day return on holding day `k + 1`, for
+  `k = 0..20`: 21 daily returns that make up the 21-day holding window (position entered at the
+  close of `t + 1`, so `k = 0` is the first tradable day). Built from a shifted wide frame, so
+  returns exist only for names still in the index at `t + k` (a mild survivorship effect). The
+  half-life is the first lag where the 3-point smoothed IC falls to half its `k = 0` value,
+  linearly interpolated; it is reported only if |t| of the `k = 0` IC is at least 2, and is NaN if
+  the IC does not halve within the window. Cumulative IC is a sum of daily correlations, not the IC
+  of the cumulative return.
+- **Fama-MacBeth.** Per-date OLS of `fwd_ret_{h}d_xs` on `z_` features, univariate for each feature
+  and multivariate with one pre-specified representative per family, with VIFs and condition
+  numbers. Newey-West t as above.
+- **Stability.** IC by calendar year and sub-period (the post-2020 window covers only 2020-01 to
+  2021-11), first vs second half, and with / without `fwd_terminal` rows.
+
+Statistical significance (`nw_t`, adjusted p, `reject_*`), economic magnitude (IC, spread, Fama-MacBeth
+slope), gross portfolio performance and turnover are separate columns / tables and should be read
+together: a significant IC says nothing about whether the spread survives turnover.
+
 ## Tests
 
 `pytest` runs offline (HTTP is mocked, features use synthetic prices). The key test checks that

@@ -223,3 +223,6 @@ __marimo__/
 # Downloaded market data caches
 /data/raw/
 /data/processed/
+
+# Cached daily signal-research series
+/reports/signal_research/cache/
