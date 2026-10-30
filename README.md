@@ -4,7 +4,42 @@ Cross-Sectional Equity Alpha & Portfolio Construction
 
 Research question: can cross-sectional price/volume signals predict relative US equity returns out-of-sample, and do the forecasts survive realistic transaction costs?
 
+## Summary
+
+**The forecast is real but small, and it doesn't clearly survive costs.** LightGBM on the 5-day rank target is the only predictor
+with a Holm-significant IC: 0.017 (t 3.50) out of sample in 2007-2021. It held on untouched data, at 0.018 (t 2.25) in 2022-2026. As
+a net book at $100m, it made nothing in the evaluation window and 0.21 in the one-shot holdout (t 0.48, 95% interval -0.58 to 1.01),
+with nearly all of that return arriving in 2026. Neither figure can be told from zero, and LightGBM wasn't shown to beat a
+one-feature reversal baseline, B0. The holdout is `inconclusive`, not a refutation: with about 4.8 years, a t of 2 needs a net Sharpe
+near 0.9.
+
+| Net Sharpe, base costs | Tuning 2007-2013 | Evaluation 2014-2021 | Holdout 2022-2026 |
+|---|---:|---:|---:|
+| Headline: LightGBM `optimised` | 0.35 | -0.00 | **0.21** |
+| B0: reversal `optimised` | 0.45 | -0.03 | -0.61 |
+| Candidate: LightGBM `optimised`, top 25% of names | 0.62 | 0.38 (second look) | 0.25 |
+
+Tuning figures are in-sample for the portfolio choices. The candidate was chosen on 2007-2013 only, but the idea behind it came from
+seeing the evaluation window, so its evaluation figure is weaker evidence.
+
+**Method.** Each research design was committed before its results existed (the pre-model diagnostics had no design of their own, and
+later designs were written knowing earlier results), with walk-forward validation, purged folds, and a one-shot holdout behind a lock.
+
+| Work | Results | Notebook |
+|---|---|---|
+| Data | [Panel summary](reports/panel_summary.txt) | [01](notebooks/01_data_exploration.ipynb) |
+| Signal research | [README](#signal-research) | [02](notebooks/02_signal_research.ipynb) |
+| Pre-model diagnostics | [SUMMARY](reports/diagnostics/SUMMARY.md) | none |
+| Modelling | [README](#modelling) | [03](notebooks/03_modelling.ipynb) |
+| Portfolio and costs | [SUMMARY](reports/portfolio/SUMMARY.md) | [04](notebooks/04_portfolio.ipynb) |
+| Risk and attribution | [SUMMARY](reports/attribution/SUMMARY.md) | [05](notebooks/05_attribution.ipynb) |
+| Sensitivity | [SUMMARY](reports/sensitivity/SUMMARY.md) | [06](notebooks/06_sensitivity.ipynb) |
+| Second round | [SUMMARY](reports/second_round/SUMMARY.md) | [07](notebooks/07_second_round.ipynb) |
+| Holdout | [SUMMARY](reports/holdout/SUMMARY.md) | [08](notebooks/08_holdout.ipynb) |
+
 ## Setup
+
+The recorded runs used Python 3.12, and `requirements.txt` pins their package versions.
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
@@ -372,8 +407,8 @@ signal columns the predictions file lacks, and horizons or a lag that disagree w
   - OOS predictions run from 2007-01-03 to the last research date (2021-11-30).
   - Portfolio hyperparameters (λ_risk, λ_tc) are chosen on 2007-2013 only.
   - The evaluation window runs from 2014-01-02 to the research end and is reported as the clean result.
-  - The 2022+ holdout is untouched. `oof_predictions.parquet` ends at the research end, so evaluating the holdout
-    later will need a model refit.
+  - The 2022+ holdout stays untouched here. `oof_predictions.parquet` ends at the research end, so the holdout has
+    its own model refit: see [Holdout: design](#holdout-design).
   - The return series starts once every tranche holds positions.
 - **Timing, as in the labels.**
   - The score is known at the close of `t`; the trade happens at the close of `t + 1`.
