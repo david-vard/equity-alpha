@@ -577,6 +577,17 @@ file's layout differs from the config, for example the AQR sheet or column name,
 regression runs and recorded in the summary. A source that can't be obtained stops the run: the largest model isn't
 replaced with another one.
 
+### Running the attribution
+
+```bash
+python -m src.run_attribution --download   # factor files -> data/raw/factors/, with a manifest of hashes
+python -m src.run_attribution --run        # -> reports/attribution/
+```
+
+`--download` keeps a file that already exists, so one vintage backs every run. `--run` never touches the network,
+refuses a factor file that doesn't match the manifest, and writes only `checks.csv` if a check fails. It reads the
+recorded books from `data/processed/portfolio/` and reruns no backtest.
+
 ## Data attribution
 
 Data from Sharadar: Core US Equities Bundle (SEP prices, S&P 500 constituents,corporate actions). 

@@ -1,18 +1,28 @@
-"""Risk and attribution: the ``configs/attribution.yaml`` loader.
+"""Risk and attribution: the ``configs/attribution.yaml`` loader, factor files and the statistics.
 
 The design is fixed in the config before any factor file is downloaded. The loader is strict: an
 unknown or missing key, a wrong type, a method the design does not define, a book the portfolio
 config does not define, or a test that does not match the pre-registered question is an error,
 never silently ignored. Only recorded base-case books are described; no backtest is rerun.
+
+Factor parsers drop every row on or after ``holdout_start`` before converting its values, so the
+published data past the holdout never reaches a result.
 """
 
 from __future__ import annotations
 
+import io
+import zipfile
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+import openpyxl
+import pandas as pd
 import yaml
+from scipy import stats
 
+from src.metrics import newey_west_lag
 from src.portfolio import CONSTRUCTIONS, _check_schema, _get, _is_type, load_portfolio_config
 from src.signals import load_research_config
 from src.utils import REPO_ROOT, load_config
@@ -245,3 +255,234 @@ def load_attribution_config(
     _check_risk_and_beta(cfg, fcfg)
     _check_outputs(cfg)
     return cfg
+
+
+# --------------------------------------------------------------------------- factor files
+
+
+def source_filename(source: dict[str, Any]) -> str:
+    return source["url"].rsplit("/", 1)[-1]
+
+
+def parse_french_csv(text: str, columns: dict[str, str], scale: float, cut_before: pd.Timestamp) -> pd.DataFrame:
+    """The daily rows of a Ken French CSV before ``cut_before``, renamed and scaled.
+
+    The header is the line naming every column; data rows start with a yyyymmdd date and end at the
+    first other line. A later row is skipped before its values are converted. -99.99 and -999 mark
+    missing values.
+    """
+    lines = text.splitlines()
+    header = None
+    for pos, line in enumerate(lines):
+        cells = [c.strip() for c in line.split(",")]
+        if set(columns) <= set(cells):
+            header, first = cells, pos + 1
+            break
+    if header is None:
+        raise ValueError(f"no header with columns {sorted(columns)}")
+    index = {name: header.index(name) for name in columns}
+    rows: dict[pd.Timestamp, dict[str, float]] = {}
+    for line in lines[first:]:
+        cells = [c.strip() for c in line.split(",")]
+        if not (len(cells[0]) == 8 and cells[0].isdigit()):
+            break
+        date = pd.Timestamp(cells[0])
+        if date >= cut_before:
+            continue
+        rows[date] = {new: float(cells[index[old]]) for old, new in columns.items()}
+    frame = pd.DataFrame.from_dict(rows, orient="index").sort_index()
+    return frame.where(frame > -99.0) * scale
+
+
+def parse_aqr_xlsx(path: Path, sheet: str, columns: dict[str, str], scale: float, cut_before: pd.Timestamp) -> pd.DataFrame:
+    """The daily rows of an AQR factor workbook before ``cut_before``; reading stops at the first later row."""
+    workbook = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    try:
+        rows_iter = workbook[sheet].iter_rows(values_only=True)
+        index = None
+        for row in rows_iter:
+            cells = [str(c).strip() if c is not None else "" for c in row]
+            if cells and cells[0].upper() == "DATE" and set(columns) <= set(cells):
+                index = {name: cells.index(name) for name in columns}
+                break
+        if index is None:
+            raise ValueError(f"{path.name}: no DATE header with columns {sorted(columns)}")
+        rows: dict[pd.Timestamp, dict[str, float]] = {}
+        for row in rows_iter:
+            if row[0] is None:
+                continue
+            date = pd.Timestamp(row[0])
+            if date >= cut_before:
+                break
+            rows[date] = {new: float(row[index[old]]) if row[index[old]] not in (None, "") else np.nan
+                          for old, new in columns.items()}
+    finally:
+        workbook.close()
+    return pd.DataFrame.from_dict(rows, orient="index").sort_index() * scale
+
+
+def load_factors(cfg: dict[str, Any], raw_dir: Path, holdout_start: pd.Timestamp) -> pd.DataFrame:
+    """All factors by date, strictly before the holdout."""
+    frames = []
+    for source in cfg["factors"]["sources"].values():
+        path = raw_dir / source_filename(source)
+        if source["format"] == "french_csv_zip":
+            with zipfile.ZipFile(path) as archive:
+                text = io.TextIOWrapper(archive.open(archive.namelist()[0]), encoding="utf-8", errors="replace").read()
+            frames.append(parse_french_csv(text, source["columns"], source["scale"], holdout_start))
+        else:
+            frames.append(parse_aqr_xlsx(path, source["sheet"], source["columns"], source["scale"], holdout_start))
+    factors = pd.concat(frames, axis=1).sort_index()[list(FACTORS)]
+    if len(factors) and factors.index.max() >= holdout_start:
+        raise AssertionError("factor parser returned a row on or after holdout_start")
+    return factors
+
+
+# --------------------------------------------------------------------------- regressions
+
+
+def ols_newey_west(y: np.ndarray, X: np.ndarray, names: list[str], lag: int) -> dict[str, Any]:
+    """OLS of ``y`` on a constant and ``X`` with a Bartlett-kernel HAC covariance (no small-sample correction).
+
+    Same estimator as ``src.portfolio_report.regression_beta``. Returns ``coef``, ``se`` and ``t``
+    series indexed by ``alpha`` and ``names``, ``r2``, ``resid`` and ``n``.
+    """
+    y, X = np.asarray(y, dtype="float64"), np.asarray(X, dtype="float64")
+    if not (np.isfinite(y).all() and np.isfinite(X).all()):
+        raise ValueError("regression inputs must be complete: a missing value is an error, never dropped")
+    n = len(y)
+    Z = np.column_stack([np.ones(n), X])
+    bread = np.linalg.inv(Z.T @ Z)
+    coef = bread @ (Z.T @ y)
+    resid = y - Z @ coef
+    score = Z * resid[:, None]
+    meat = score.T @ score
+    for j in range(1, min(lag, n - 1) + 1):
+        gamma = score[j:].T @ score[:-j]
+        meat += (1 - j / (lag + 1)) * (gamma + gamma.T)
+    se = np.sqrt(np.diag(bread @ meat @ bread))
+    terms = ["alpha", *names]
+    total = float(((y - y.mean()) ** 2).sum())
+    return {"coef": pd.Series(coef, terms), "se": pd.Series(se, terms), "t": pd.Series(coef / se, terms),
+            "r2": 1 - float(resid @ resid) / total if total > 0 else np.nan, "resid": resid, "n": n}
+
+
+def primary_outcome(reversal_beta: float, reversal_t: float, alpha_t: float, threshold: float) -> str:
+    """The pre-registered outcome of the confirmatory test; the four cases cover every input."""
+    present = reversal_beta > 0 and reversal_t >= threshold
+    if present:
+        return "reversal_partial" if alpha_t >= threshold else "reversal_explained"
+    return "not_reversal" if alpha_t >= threshold else "inconclusive"
+
+
+def nested_models(cfg: dict[str, Any]) -> dict[str, list[str]]:
+    """Each model's full factor list, in config order."""
+    out: dict[str, list[str]] = {}
+    factors: list[str] = []
+    for name, spec in cfg["models"].items():
+        factors = factors + spec["adds"]
+        out[name] = factors
+    return out
+
+
+def factor_tables(y: pd.Series, factors: pd.DataFrame, models: dict[str, list[str]], horizon: int,
+                  trading_days: int, ids: dict[str, Any]) -> tuple[list[dict], list[dict]]:
+    """Summary rows and long loading rows of every nested model, with the exact mean decomposition."""
+    model_rows, loading_rows = [], []
+    lag = newey_west_lag(len(y), horizon)
+    for model, names in models.items():
+        fit = ols_newey_west(y.to_numpy(), factors[names].to_numpy(), names, lag)
+        means = pd.Series({"alpha": 1.0, **factors[names].mean().to_dict()})
+        contribution = fit["coef"] * means
+        gap = float(y.mean() - contribution.sum())
+        resid_vol = float(fit["resid"].std(ddof=1) * np.sqrt(trading_days))
+        alpha_ann = float(fit["coef"]["alpha"] * trading_days)
+        model_rows.append({**ids, "model": model, "n_days": fit["n"], "nw_lag": lag,
+                           "mean_return_ann": float(y.mean() * trading_days), "alpha_ann": alpha_ann,
+                           "alpha_t": float(fit["t"]["alpha"]), "r2": fit["r2"], "resid_vol_ann": resid_vol,
+                           "information_ratio": alpha_ann / resid_vol if resid_vol > 0 else np.nan,
+                           "decomposition_gap": gap})
+        for term in fit["coef"].index:
+            loading_rows.append({**ids, "model": model, "term": term, "coef": float(fit["coef"][term]),
+                                 "se": float(fit["se"][term]), "t": float(fit["t"][term]),
+                                 "contribution_bp_per_year": float(contribution[term] * trading_days * 1e4)})
+    return model_rows, loading_rows
+
+
+# --------------------------------------------------------------------------- risk
+
+
+def drawdown_episodes(pnl: pd.Series, n: int) -> list[dict[str, Any]]:
+    """The ``n`` deepest peak-to-trough falls of cumulative P&L, which starts at zero before the first date."""
+    equity = pnl.cumsum()
+    high = equity.cummax().clip(lower=0.0)
+    under = equity < high
+    block = (~under).cumsum()
+    episodes = []
+    for _, days in equity[under].groupby(block[under]):
+        depth = float((days - high[days.index]).min())
+        trough = (days - high[days.index]).idxmin()
+        before = equity.index[equity.index < days.index[0]]
+        after = equity.index[equity.index > days.index[-1]]
+        episodes.append({"depth": depth, "peak": before[-1] if len(before) else None, "trough": trough,
+                         "recovery": after[0] if len(after) else None,
+                         "days_to_trough": int(equity.index.get_loc(trough) - equity.index.get_loc(days.index[0]) + 1),
+                         "days_under_water": len(days)})
+    return sorted(episodes, key=lambda e: e["depth"])[:n]
+
+
+def var_es(pnl: pd.Series, confidence: float, horizon: int) -> dict[str, float]:
+    """Historical VaR and ES as positive losses; ``horizon`` > 1 uses overlapping rolling sums."""
+    x = pnl.rolling(horizon).sum().dropna().to_numpy() if horizon > 1 else pnl.to_numpy()
+    cut = float(np.quantile(x, 1 - confidence))
+    return {"var": -cut, "es": -float(x[x <= cut].mean())}
+
+
+def moments(pnl: pd.Series, horizon: int) -> dict[str, float]:
+    """Skew and excess kurtosis of daily returns and of consecutive non-overlapping h-day sums."""
+    blocks = pnl.groupby(np.arange(len(pnl)) // horizon).sum()
+    blocks = blocks[pnl.groupby(np.arange(len(pnl)) // horizon).size() == horizon]
+    return {"skew_daily": float(stats.skew(pnl)), "excess_kurtosis_daily": float(stats.kurtosis(pnl)),
+            "skew_h_day": float(stats.skew(blocks)), "excess_kurtosis_h_day": float(stats.kurtosis(blocks))}
+
+
+def worst_periods(pnl: pd.Series) -> dict[str, Any]:
+    monthly = pnl.groupby(pnl.index.to_period("M")).sum()
+    return {"worst_day": float(pnl.min()), "worst_day_date": pnl.idxmin(), "worst_month": float(monthly.min()),
+            "worst_month_period": str(monthly.idxmin())}
+
+
+# --------------------------------------------------------------------------- beta
+
+
+def weights_exposure(weights: pd.DataFrame, beta: pd.DataFrame, dates: pd.DatetimeIndex, n_tranches: int) -> pd.Series:
+    """Daily ``sum_i w_i beta_i`` from rebalance weights, with beta known at the score date.
+
+    ``weights`` holds per-tranche target weights per $ of the tranche's capital. Each tranche's
+    exposure is held from its trade date to its next one, and tranches count ``1 / n_tranches``.
+    A held name without a beta counts zero, as in the backtest.
+    """
+    long = beta.stack().rename("beta").rename_axis(["score_date", "ticker"]).reset_index()
+    merged = weights.merge(long, on=["score_date", "ticker"], how="left")
+    merged["exposure"] = merged["weight"] * merged["beta"].fillna(0.0)
+    by_tranche = merged.groupby(["trade_date", "tranche"])["exposure"].sum().unstack("tranche").sort_index()
+    held = by_tranche.reindex(by_tranche.index.union(dates)).ffill()
+    return (held.fillna(0.0).sum(axis=1) / n_tranches).reindex(dates)
+
+
+def conditional_beta(y: pd.Series, market: pd.Series, exposure: pd.Series, lag: int) -> dict[str, float]:
+    """``r_t = a + b0 m_t + b1 X_(t-1) m_t``; t-statistics test ``b0 = 0`` and ``b1 = 1``."""
+    frame = pd.DataFrame({"y": y, "m": market, "x": exposure.shift(1)}).dropna()
+    fit = ols_newey_west(frame["y"].to_numpy(), np.column_stack([frame["m"], frame["x"] * frame["m"]]), ["b0", "b1"], lag)
+    return {"b0": float(fit["coef"]["b0"]), "b0_t_vs_0": float(fit["t"]["b0"]), "b1": float(fit["coef"]["b1"]),
+            "b1_t_vs_1": float((fit["coef"]["b1"] - 1) / fit["se"]["b1"]), "n_days": fit["n"]}
+
+
+def up_down_beta(y: pd.Series, market: pd.Series, lag: int) -> dict[str, float]:
+    """Separate market betas on up and down days, and the t-statistic of their difference."""
+    m = market.to_numpy()
+    up = np.where(m > 0, m, 0.0)
+    fit = ols_newey_west(y.to_numpy(), np.column_stack([m, up]), ["down", "up_minus_down"], lag)
+    return {"beta_down": float(fit["coef"]["down"]), "beta_down_t": float(fit["t"]["down"]),
+            "beta_up": float(fit["coef"]["down"] + fit["coef"]["up_minus_down"]),
+            "up_minus_down": float(fit["coef"]["up_minus_down"]), "up_minus_down_t": float(fit["t"]["up_minus_down"])}

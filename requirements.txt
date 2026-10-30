@@ -5,6 +5,7 @@ scikit-learn
 lightgbm
 shap
 statsmodels
+openpyxl==3.1.5
 cvxpy==1.9.3
 
 matplotlib
