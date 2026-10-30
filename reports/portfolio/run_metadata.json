@@ -1,0 +1,103 @@
+{
+  "runs": {
+    "lightgbm_h5_rank": {
+      "config_commit": "3c21a5be6e9c74128ffac0f691fa650c3a05dddf",
+      "config_sha256": "6e2e5c1a33960b5a6fe7af7010651d7f33ae2f9024ada4effa1f86990f1dff2d",
+      "code_commit": "3f967a2e64517db991ea62f7a9967235830bfc56",
+      "code_dirty": true,
+      "predictions_sha256": "45e398698a5be86abc6ccc27ba5a5517d426f07e665541b22c1185216949fb95",
+      "panel_sha256": "747c69f3ea849f522e4f3e277de4771ea9d79c794be27425f89eb25f8cd6ee4c",
+      "selected_lambdas": {
+        "lightgbm_h5_rank": [
+          100.0,
+          4.0
+        ]
+      },
+      "evaluation_start": "2014-01-02",
+      "last_engine_date": "2021-12-08",
+      "runtime_seconds": 15353.5
+    },
+    "B0_reversal_h5": {
+      "config_commit": "3c21a5be6e9c74128ffac0f691fa650c3a05dddf",
+      "config_sha256": "6e2e5c1a33960b5a6fe7af7010651d7f33ae2f9024ada4effa1f86990f1dff2d",
+      "code_commit": "3f967a2e64517db991ea62f7a9967235830bfc56",
+      "code_dirty": true,
+      "predictions_sha256": "45e398698a5be86abc6ccc27ba5a5517d426f07e665541b22c1185216949fb95",
+      "panel_sha256": "747c69f3ea849f522e4f3e277de4771ea9d79c794be27425f89eb25f8cd6ee4c",
+      "selected_lambdas": {
+        "B0_reversal_h5": [
+          3.0,
+          1.0
+        ]
+      },
+      "evaluation_start": "2014-01-02",
+      "last_engine_date": "2021-12-08",
+      "runtime_seconds": 15912.6
+    },
+    "B1_composite_h5": {
+      "config_commit": "3c21a5be6e9c74128ffac0f691fa650c3a05dddf",
+      "config_sha256": "6e2e5c1a33960b5a6fe7af7010651d7f33ae2f9024ada4effa1f86990f1dff2d",
+      "code_commit": "3f967a2e64517db991ea62f7a9967235830bfc56",
+      "code_dirty": true,
+      "predictions_sha256": "45e398698a5be86abc6ccc27ba5a5517d426f07e665541b22c1185216949fb95",
+      "panel_sha256": "747c69f3ea849f522e4f3e277de4771ea9d79c794be27425f89eb25f8cd6ee4c",
+      "selected_lambdas": {
+        "B1_composite_h5": [
+          3.0,
+          2.0
+        ]
+      },
+      "evaluation_start": "2014-01-02",
+      "last_engine_date": "2021-12-08",
+      "runtime_seconds": 17401.3
+    },
+    "lightgbm_h21_rank": {
+      "config_commit": "3c21a5be6e9c74128ffac0f691fa650c3a05dddf",
+      "config_sha256": "6e2e5c1a33960b5a6fe7af7010651d7f33ae2f9024ada4effa1f86990f1dff2d",
+      "code_commit": "3f967a2e64517db991ea62f7a9967235830bfc56",
+      "code_dirty": true,
+      "predictions_sha256": "45e398698a5be86abc6ccc27ba5a5517d426f07e665541b22c1185216949fb95",
+      "panel_sha256": "747c69f3ea849f522e4f3e277de4771ea9d79c794be27425f89eb25f8cd6ee4c",
+      "selected_lambdas": {
+        "lightgbm_h21_rank": [
+          3.0,
+          4.0
+        ]
+      },
+      "evaluation_start": "2014-01-02",
+      "last_engine_date": "2021-12-31",
+      "runtime_seconds": 20250.8
+    }
+  },
+  "tuning_runs": {
+    "lightgbm_h5_rank": {
+      "config_sha256": "6e2e5c1a33960b5a6fe7af7010651d7f33ae2f9024ada4effa1f86990f1dff2d",
+      "code_commit": "3f967a2e64517db991ea62f7a9967235830bfc56",
+      "tuning_end": "2013-12-31",
+      "runtime_seconds": 17908.7
+    },
+    "B0_reversal_h5": {
+      "config_sha256": "6e2e5c1a33960b5a6fe7af7010651d7f33ae2f9024ada4effa1f86990f1dff2d",
+      "code_commit": "3f967a2e64517db991ea62f7a9967235830bfc56",
+      "tuning_end": "2013-12-31",
+      "runtime_seconds": 16499.3
+    },
+    "B1_composite_h5": {
+      "config_sha256": "6e2e5c1a33960b5a6fe7af7010651d7f33ae2f9024ada4effa1f86990f1dff2d",
+      "code_commit": "3f967a2e64517db991ea62f7a9967235830bfc56",
+      "tuning_end": "2013-12-31",
+      "runtime_seconds": 18016.0
+    },
+    "lightgbm_h21_rank": {
+      "config_sha256": "6e2e5c1a33960b5a6fe7af7010651d7f33ae2f9024ada4effa1f86990f1dff2d",
+      "code_commit": "3f967a2e64517db991ea62f7a9967235830bfc56",
+      "tuning_end": "2013-12-31",
+      "runtime_seconds": 20392.1
+    }
+  },
+  "config_sha256": [
+    "6e2e5c1a33960b5a6fe7af7010651d7f33ae2f9024ada4effa1f86990f1dff2d"
+  ],
+  "holdout_start": "2022-01-01",
+  "last_research_date": "2021-11-30"
+}

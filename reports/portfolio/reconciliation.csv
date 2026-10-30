@@ -1,0 +1,8 @@
+source,n_periods,mean,vol,sharpe,nw_t,max_abs_diff,periods_differing_1e-6,periods_with_missing_leg_labels,max_abs_diff_without_missing_labels,cost_sum,turnover_sum
+reports/models/decile_spreads.csv,751,0.0029044059192614,0.0350476405155156,0.5883202482603875,2.17644098122803,,,,,,
+label_spread_recomputed,751,0.0029044059192614427,0.035047640515515635,0.5883202482603875,2.17644098122803,,,,,,
+engine_decile_ls_zero_cost_one_tranche,751,0.002897755168518802,0.03500312765230063,0.5877195068670865,2.17609706360759,,,,,,
+engine_minus_label_per_period,751,-6.6507507426405095e-06,0.00021002485222813272,,,0.005548698447790823,6.0,6.0,9.540979117872439e-17,,
+zero_cost_gross_minus_net_decile_ls,4013,,,,,0.0,,,,0.0,1310.27312166894
+zero_cost_gross_minus_net_neutral_volscaled,4013,,,,,0.0,,,,0.0,1056.579025507564
+zero_cost_gross_minus_net_optimised,312,,,,,0.0,,,,0.0,18.669245212645937

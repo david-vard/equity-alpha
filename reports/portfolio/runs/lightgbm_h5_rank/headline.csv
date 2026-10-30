@@ -1,0 +1,2 @@
+signal,construction,window,start,end,n_days,net_sharpe,net_nw_t,gross_sharpe,annual_turnover,breakeven_cost_multiplier
+lightgbm_h5_rank,optimised,evaluation,2014-01-02,2021-12-08,1999,-0.001464118242907618,-0.004419995061687297,0.1358221018440539,1.1848540345965493,0.9893360002479187

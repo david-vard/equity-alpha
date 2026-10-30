@@ -1,0 +1,5 @@
+signal,horizon,grid_order,lambda_risk,lambda_tc,net_sharpe,config_sha256,lambda_risk_on_grid_edge,lambda_tc_on_grid_edge
+lightgbm_h5_rank,5,15,100.0,4.0,0.3450108145923088,6e2e5c1a33960b5a6fe7af7010651d7f33ae2f9024ada4effa1f86990f1dff2d,True,True
+B0_reversal_h5,5,1,3.0,1.0,0.4472430373862182,6e2e5c1a33960b5a6fe7af7010651d7f33ae2f9024ada4effa1f86990f1dff2d,True,False
+B1_composite_h5,5,2,3.0,2.0,-0.1367663771890345,6e2e5c1a33960b5a6fe7af7010651d7f33ae2f9024ada4effa1f86990f1dff2d,True,False
+lightgbm_h21_rank,21,3,3.0,4.0,0.4839964999845889,6e2e5c1a33960b5a6fe7af7010651d7f33ae2f9024ada4effa1f86990f1dff2d,True,True

@@ -1,0 +1,2 @@
+signal,construction,window,start,end,n_days,net_sharpe,net_nw_t,gross_sharpe,annual_turnover,breakeven_cost_multiplier
+B0_reversal_h5,optimised,evaluation,2014-01-02,2021-12-08,1999,-0.02598709555304015,-0.06546359531280431,0.26329525501225876,9.92723671491678,0.910272278399587

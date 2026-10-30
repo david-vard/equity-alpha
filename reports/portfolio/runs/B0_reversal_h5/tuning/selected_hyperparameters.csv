@@ -1,0 +1,2 @@
+signal,horizon,grid_order,lambda_risk,lambda_tc,net_sharpe
+B0_reversal_h5,5,1,3.0,1.0,0.4472430373862182

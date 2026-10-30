@@ -1,0 +1,2 @@
+signal,horizon,grid_order,lambda_risk,lambda_tc,net_sharpe
+lightgbm_h5_rank,5,15,100.0,4.0,0.3450108145923088

@@ -460,8 +460,10 @@ python -m src.run_portfolio --evaluate   # every signal x construction x cost sc
   - `data/processed/portfolio_weights.parquet`: target weights, trades and their costs per rebalance.
 - **Both modes** refuse to start unless `configs/portfolio.yaml`, `configs/research.yaml` and the feature config are
   committed and unmodified (`--allow-dirty-config` overrides). `--signals` and `--constructions` run a subset.
-- **Runtime.** `optimised` solves one cvxpy / Clarabel problem per rebalance, about 0.5 s at 500 names, so one
-  full-sample run of it takes roughly half an hour.
+- **Runtime.** `optimised` solves one cvxpy / Clarabel problem per rebalance. In practice a 2007-2013 tuning run of
+  one grid point takes about 17 minutes, and the evaluate run of one signal takes 4-6 hours. The recorded results
+  were run one process per signal (`--signals S --out reports/portfolio/runs/S --data-out data/processed/portfolio/S`)
+  and merged with `python -m src.portfolio_report --tables reports/portfolio/runs/* --data data/processed/portfolio/*`.
 
 The engine ([`src/backtest.py`](src/backtest.py)) uses the constructions in [`src/portfolio.py`](src/portfolio.py)
 and the cost model in [`src/costs.py`](src/costs.py). The optimiser's cost term and the accounting use the same cost
@@ -470,6 +472,22 @@ tranche falls back to one of the following, and every fallback is logged and cou
 1. its current weights, neutralised and scaled into the caps, if the ADV cap allows that trade;
 2. otherwise flat;
 3. otherwise each name moved towards zero as far as the ADV cap allows, flagged as breaking the constraints.
+
+### Results (evaluation window 2014-01-02 to 2021-12-08, frozen λs)
+
+**No net edge after costs.** The engine reconciles with the h=5 decile spread from the models report: mean difference
+-7e-6 per period, explained entirely by 6 periods with missing leg labels.
+
+The headline, `optimised` on `lightgbm_h5_rank` at $100m and base costs, has a net Sharpe of -0.00 (NW t -0.00) against
+-0.03 (t -0.07) for B0. It trades 1.2× a year, has a gross Sharpe of 0.14 and a break-even cost multiplier of 0.99.
+Every tuned λ landed on the edge of the grid.
+
+`neutral_volscaled` has the best gross Sharpe (0.80 for `lightgbm_h5_rank`), but at 54× turnover, mostly impact, it
+loses net. LightGBM does not beat B0 after costs. None of the 12 signal × construction books has a net t above 1.
+
+Full write-up, with cost breakdown, AUM scenarios, exposures, limitations and a not-pre-registered list:
+[`reports/portfolio/SUMMARY.md`](reports/portfolio/SUMMARY.md). Notebook:
+[`notebooks/04_portfolio.ipynb`](notebooks/04_portfolio.ipynb).
 
 ## Data attribution
 
