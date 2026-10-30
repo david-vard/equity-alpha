@@ -1,4 +1,4 @@
-"""Sensitivity: the ``configs/sensitivity.yaml`` loader.
+"""Sensitivity: the ``configs/sensitivity.yaml`` loader and the statistics.
 
 The design is fixed in the config before any bootstrap, repricing or per-offset statistic is
 computed. The loader is strict: an unknown or missing key, a wrong type, a method the design does
@@ -12,8 +12,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+import pandas as pd
 import yaml
 
+from src.metrics import newey_west_lag, newey_west_tstat, sharpe
 from src.portfolio import _check_schema, _get, _is_type, _positive_numbers, load_portfolio_config
 from src.signals import load_research_config
 from src.utils import REPO_ROOT, load_config
@@ -175,3 +178,106 @@ def load_sensitivity_config(
     _check_offsets(cfg)
     _check_tolerances_and_outputs(cfg)
     return cfg
+
+
+# --------------------------------------------------------------------------- bootstrap
+
+
+def stationary_indices(n: int, n_resamples: int, mean_block: int, seed: int) -> np.ndarray:
+    """Resampled day positions, ``n_resamples`` x ``n``: the Politis-Romano stationary bootstrap.
+
+    Each day starts a new block with probability ``1 / mean_block`` and otherwise follows the day
+    before, wrapping from the last day to the first. The generator depends only on ``seed``, ``n``
+    and ``mean_block``, so every book with the same dates gets the same resampled days.
+    """
+    rng = np.random.default_rng([seed, n, mean_block])
+    jumps = rng.integers(0, n, size=(n_resamples, n), dtype=np.int32)
+    keep = rng.random((n_resamples, n)) >= 1 / mean_block
+    keep[:, 0] = False
+    index = jumps
+    for t in range(1, n):
+        follow = keep[:, t]
+        index[follow, t] = (index[follow, t - 1] + 1) % n
+    return index
+
+
+def resampled_sharpes(x: np.ndarray, index: np.ndarray, trading_days: int) -> np.ndarray:
+    """Annualised Sharpe of ``x`` in every resample, computed as ``src.metrics.sharpe`` does."""
+    draws = np.asarray(x, dtype="float64")[index]
+    sd = draws.std(axis=1, ddof=1)
+    return np.where(sd > 0, draws.mean(axis=1) / np.where(sd > 0, sd, 1.0) * np.sqrt(trading_days), np.nan)
+
+
+def percentile_interval(samples: np.ndarray, confidence: float) -> dict[str, Any]:
+    """Percentile interval of bootstrap draws, their sd and the share above zero."""
+    tail = (1 - confidence) / 2
+    low, high = np.quantile(samples, [tail, 1 - tail])
+    return {"ci_low": float(low), "ci_high": float(high), "resample_sd": float(samples.std(ddof=1)),
+            "share_above_zero": float((samples > 0).mean()), "contains_zero": bool(low <= 0 <= high)}
+
+
+# --------------------------------------------------------------------------- repricing
+
+
+def reprice(frame: pd.DataFrame, y: float, borrow_bps: float, base_y: float, base_borrow_bps: float) -> pd.Series:
+    """Daily net return of the recorded trades with impact and borrow rescaled."""
+    if base_y <= 0 or base_borrow_bps <= 0:
+        raise ValueError("repricing needs positive base values of Y and borrow")
+    return (frame["gross_pnl"] - frame["commission"] - frame["spread"]
+            - frame["impact"] * (y / base_y) - frame["borrow"] * (borrow_bps / base_borrow_bps))
+
+
+def breakevens(frame: pd.DataFrame, base_y: float, base_borrow_bps: float) -> dict[str, float]:
+    """The Y and the borrow rate at which the mean net return is zero, the other input at base.
+
+    A negative value means the book loses money with that cost at zero.
+    """
+    edge = (frame["gross_pnl"] - frame["commission"] - frame["spread"]).mean()
+    impact, borrow = frame["impact"].mean(), frame["borrow"].mean()
+    return {"breakeven_impact_y": float((edge - borrow) / impact * base_y) if impact > 0 else np.nan,
+            "breakeven_borrow_bps_per_year": float((edge - impact) / borrow * base_borrow_bps) if borrow > 0 else np.nan}
+
+
+def repricing_rows(frame: pd.DataFrame, cfg: dict[str, Any], base_y: float, base_borrow_bps: float, horizon: int,
+                   trading_days: int, ids: dict[str, Any]) -> list[dict[str, Any]]:
+    """One row per grid point, with the NW lag rule of ``src.backtest.performance``."""
+    lag = newey_west_lag(len(frame), horizon)
+    rows = []
+    for y in cfg["repricing"]["impact_y"]:
+        for borrow in cfg["repricing"]["borrow_bps_per_year"]:
+            net = reprice(frame, y, borrow, base_y, base_borrow_bps)
+            rows.append({**ids, "impact_y": y, "borrow_bps_per_year": borrow,
+                         "is_base": y == base_y and borrow == base_borrow_bps, "net_sharpe": sharpe(net, trading_days),
+                         "net_nw_t": newey_west_tstat(net.to_numpy(), lag)["t"],
+                         "net_return_ann": float(net.mean() * trading_days)})
+    return rows
+
+
+# --------------------------------------------------------------------------- offsets
+
+
+def offset_rows(tranches: pd.DataFrame, trading_days: int, ids: dict[str, Any], series: list[str]) -> list[dict[str, Any]]:
+    """Each offset as its own book: tranche rows are per $ of total capital, so returns scale by n."""
+    n = tranches["tranche"].nunique()
+    rows = []
+    for tranche, frame in tranches.groupby("tranche", sort=False):
+        for pnl in series:
+            rows.append({**ids, "series": pnl, "offset": int(tranche), "n_days": len(frame),
+                         "sharpe": sharpe(frame[pnl], trading_days),
+                         "return_ann": float(frame[pnl].mean() * trading_days * n),
+                         "turnover_ann": float(frame["turnover"].mean() * trading_days * n)})
+    return rows
+
+
+def offset_dispersion(offsets: pd.DataFrame, totals: pd.DataFrame, keys: list[str]) -> pd.DataFrame:
+    """Minimum, maximum, range and sd of each statistic across a book's offsets, next to its total."""
+    rows = []
+    for key, group in offsets.groupby(keys, sort=False):
+        ids = dict(zip(keys, key))
+        total = totals.loc[(totals[keys] == pd.Series(ids)).all(axis=1)].iloc[0]
+        for statistic in sorted(OFFSET_STATISTICS):
+            x = group[statistic]
+            rows.append({**ids, "statistic": statistic, "n_offsets": len(x), "total": float(total[statistic]),
+                         "min": float(x.min()), "max": float(x.max()), "range": float(x.max() - x.min()),
+                         "sd": float(x.std(ddof=1))})
+    return pd.DataFrame(rows)

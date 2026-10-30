@@ -658,6 +658,15 @@ The run stops before writing results if any of these fails:
 
 The results will go to `reports/sensitivity/`, with a summary there and `notebooks/06_sensitivity.ipynb`.
 
+### Running the sensitivity analysis
+
+```bash
+python -m src.run_sensitivity   # -> reports/sensitivity/
+```
+
+The checks run first, and if one fails only `checks.csv` is written. The run reads the recorded books from
+`data/processed/portfolio/`, reruns no backtest and doesn't re-solve the optimiser.
+
 ## Data attribution
 
 Data from Sharadar: Core US Equities Bundle (SEP prices, S&P 500 constituents,corporate actions). 
@@ -695,3 +704,8 @@ leaving the pre-registered design, including a change to the confirmatory test o
 
 The sensitivity-config tests do the same for `configs/sensitivity.yaml`, including a change to a primary interval, a grid
 without its base point, and a block length shorter than the longest horizon.
+
+The sensitivity tests check that the stationary bootstrap is reproducible and has the declared block length, and that
+resampled Sharpes match the project's Sharpe. They also check that repricing at the base point returns the recorded net
+series, that break-evens set the mean net return to zero, that a book minus itself gives exactly zero, and that each spoiled
+input fails its check with only `checks.csv` written.
