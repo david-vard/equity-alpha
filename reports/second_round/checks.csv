@@ -1,0 +1,9 @@
+check,variant,value,limit,passed
+recorded_book,no_trade_band__lightgbm_h5_rank__neutral_volscaled__0,6.938893903907228e-18,1e-09,True
+recorded_book,liquid_universe__lightgbm_h5_rank__neutral_volscaled__1,6.938893903907228e-18,1e-09,True
+recorded_book,no_trade_band__B0_reversal_h5__neutral_volscaled__0,6.938893903907228e-18,1e-09,True
+recorded_book,liquid_universe__B0_reversal_h5__optimised__1,0.0,1e-06,True
+recorded_book,liquid_universe__B0_reversal_h5__neutral_volscaled__1,6.938893903907228e-18,1e-09,True
+recorded_book,liquid_universe__lightgbm_h5_rank__optimised__1,0.0,1e-06,True
+every_variant_tuned,all,0.0,0.0,True
+tuning_isolation,all,0.0,0.0,True
