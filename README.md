@@ -847,6 +847,21 @@ The command refuses without its flag, with uncommitted changes in `src/` or `con
 that lock is written. The books run continuously, so holdout days are simulated together with earlier ones. The checks compare only
 pre-holdout data, and no holdout statistic is computed or written until they pass. The research loaders keep their guard.
 
+### Results (one opening: 2022-01-03 to 2026-10-23, base costs)
+
+**The holdout doesn't confirm the headline, and it doesn't refute it.** The headline is `inconclusive` at 0.21 net (t 0.48, interval
+-0.58 to 1.01). Its difference from B0 is `no_difference_shown`: +0.83 (interval -0.33 to 2.02). The candidate, which is secondary, is
+`inconclusive` at 0.25 net (t 0.53, interval -0.63 to 1.06). B0 is -0.61 net (t -1.41) and loses before costs. All 5 checks passed.
+
+With about 4.8 years, a t of 2 needs a net Sharpe near 0.9, so this sample can't separate zero from a modest edge. The headline is a
+small book, at 36 bp a year on 1.7% vol, and the candidate is smaller, at 15 bp. Nearly all of the LightGBM return arrives in 2026: the
+headline had made +0.10% of its +1.74% by the end of 2025, and the candidate was at -0.50%. The score's IC held at 0.018 (t 2.25,
+secondary), close to the 0.017 of 2007-2021, so the forecast survived on new data, but the book still doesn't turn it into a
+return this sample can distinguish from zero.
+
+Full write-up: [`reports/holdout/SUMMARY.md`](reports/holdout/SUMMARY.md). Notebook:
+[`notebooks/08_holdout.ipynb`](notebooks/08_holdout.ipynb).
+
 ## Data attribution
 
 Data from Sharadar: Core US Equities Bundle (SEP prices, S&P 500 constituents,corporate actions). 

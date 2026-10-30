@@ -1,0 +1,15 @@
+{
+  "config_commit": "acbf5a9eaa2f0efb5292122505751f5e99ca371e",
+  "config_dirty": false,
+  "config_sha256": "fb87c8a5751803c2f8f0e60ab34427bc089a86d67ffd967bc46c938523ad9fca",
+  "code_commit": "6f731f9fe42329af477250c618210818353b562d",
+  "code_dirty": false,
+  "features_config_sha256": "42109759ae31f519774ae5ebdcdf59468732ed5eb2511704420bf1ed47fc136d",
+  "panel_sha256": "747c69f3ea849f522e4f3e277de4771ea9d79c794be27425f89eb25f8cd6ee4c",
+  "panel_bytes": 649981296,
+  "holdout_start": "2022-01-01",
+  "last_research_date": "2021-11-30",
+  "last_score_date": "2026-10-15",
+  "last_engine_date": "2026-10-23",
+  "runtime_seconds": 6675.3
+}

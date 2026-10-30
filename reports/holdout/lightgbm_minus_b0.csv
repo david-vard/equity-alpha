@@ -1,0 +1,2 @@
+test,difference,ci_low,ci_high,resample_sd,share_above_zero,contains_zero,outcome
+lightgbm_minus_b0,0.8251676519817471,-0.3254219051959561,2.0163666339925714,0.5945765371620864,0.9213,True,no_difference_shown

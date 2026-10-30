@@ -1,0 +1,6 @@
+check,book,value,limit,passed
+predictions_lightgbm_h5_rank,all,1.749393012395739e-09,1e-05,True
+predictions_B0_reversal_h5,all,0.0,1e-05,True
+recorded_net_sharpe,headline,2.7755575615628914e-17,1e-06,True
+recorded_net_sharpe,benchmark,0.0,1e-06,True
+recorded_net_sharpe,candidate,0.0,1e-06,True

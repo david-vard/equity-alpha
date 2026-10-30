@@ -1,0 +1,6 @@
+model,horizon,variant,fold_id,num_leaves,min_data_in_leaf,lambda_l2,learning_rate,feature_fraction,validation_ic,n_rounds,train_rows,test_rows
+lightgbm,5,rank,15,15,10000,50.0,0.05,0.7,0.01018344411522503,5,580042,126430
+lightgbm,5,rank,16,15,2000,1.0,0.05,0.7,0.01322988177879142,40,605225,125749
+lightgbm,5,rank,17,15,10000,1.0,0.05,0.7,0.01362593096892392,29,630375,126752
+lightgbm,5,rank,18,15,10000,1.0,0.05,0.7,0.017439858934258763,27,655524,125746
+lightgbm,5,rank,19,15,10000,50.0,0.05,0.7,0.0234787835266717,62,680673,99592
