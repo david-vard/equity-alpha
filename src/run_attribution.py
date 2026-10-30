@@ -154,7 +154,10 @@ def analyse(cfg: dict[str, Any], daily: dict[str, pd.DataFrame], exposures: dict
             published = exposures_table[(exposures_table["signal"] == spec["signal"])
                                         & (exposures_table["construction"] == spec["construction"])
                                         & (exposures_table["window"] == label[window])]
-            fit = ols_newey_west(frame["net_pnl"].to_numpy(), frame[["market_return"]].to_numpy(), ["market"], lag)
+            # The universe return does not exist on the days after the research cutoff, when open tranches
+            # run off; exposures.csv leaves those days out, and so do the regressions on that return.
+            observed = frame[frame["market_return"].notna()]
+            fit = ols_newey_west(observed["net_pnl"].to_numpy(), observed[["market_return"]].to_numpy(), ["market"], lag)
             gap = max(abs(fit["coef"]["market"] - published["realised_beta"].iloc[0]),
                       abs(fit["t"]["market"] - published["realised_beta_t"].iloc[0]))
             rows["checks"].append({"check": "reproduce_exposures", "book": name, "window": label[window], "value": gap,
@@ -186,8 +189,9 @@ def analyse(cfg: dict[str, Any], daily: dict[str, pd.DataFrame], exposures: dict
                     rows["drawdowns"].append({**sid, "rank": rank, **episode})
 
                 for proxy_name, proxy_label in PROXIES.items():
-                    m = proxy[proxy_name]
-                    fit = ols_newey_west(y.to_numpy(), m.to_frame().to_numpy(), ["market"], lag)
+                    m = proxy[proxy_name].dropna()
+                    y_m = y.loc[m.index]
+                    fit = ols_newey_west(y_m.to_numpy(), m.to_frame().to_numpy(), ["market"], lag)
                     beta, se = float(fit["coef"]["market"]), float(fit["se"]["market"])
                     low, high = beta - 1.96 * se, beta + 1.96 * se
                     ex_ante = float(frame["beta_ex_ante"].mean())
@@ -198,12 +202,12 @@ def analyse(cfg: dict[str, Any], daily: dict[str, pd.DataFrame], exposures: dict
                         "ci_contains_ex_ante": bool(low <= ex_ante <= high),
                         "mean_exposure_short_beta": float(held["exposure_short_beta"].loc[lo:hi].mean()),
                         "mean_exposure_252d_weights": float(held["exposure_252d_weights"].loc[lo:hi].mean())})
-                    rows["beta_up_down"].append({**sid, "market_proxy": proxy_label, **up_down_beta(y, m, lag)})
+                    rows["beta_up_down"].append({**sid, "market_proxy": proxy_label, **up_down_beta(y_m, m, lag)})
                     for measure, exposure in (("beta_ex_ante", daily[name]["beta_ex_ante"]),
                                               ("exposure_short_beta", held["exposure_short_beta"])):
                         rows["beta_conditional"].append({
                             **sid, "market_proxy": proxy_label, "exposure": measure,
-                            **conditional_beta(y, m, exposure.reindex(daily[name].index), lag)})
+                            **conditional_beta(y_m, m, exposure.reindex(daily[name].index), lag)})
 
     tables = {k: pd.DataFrame(v) for k, v in rows.items()}
     loadings = tables["factor_loadings"]

@@ -248,6 +248,30 @@ def test_analysis_passes_its_checks_and_finds_the_planted_reversal():
 OWN_TERM = run_attribution.OWN_REVERSAL
 
 
+def test_days_after_the_research_cutoff_leave_only_the_universe_regressions():
+    cfg, daily, exposures, factors, windows, table = synthetic()
+    full = analyse(cfg, daily, exposures, factors, windows, table, 252)
+    tail = daily[next(iter(daily))].index[-6:]
+    for frame in daily.values():
+        frame.loc[tail, "market_return"] = np.nan
+    rows = []
+    for name, spec in cfg["books"].items():
+        sub = daily[name].loc[windows[name]["evaluation"][0]:]
+        ok = sub[sub["market_return"].notna()]
+        beta = regression_beta(sub["net_pnl"].to_numpy(), sub["market_return"].to_numpy(),
+                               run_attribution.newey_west_lag(len(sub), 5))
+        assert len(ok) == len(sub) - 6
+        rows.append({"signal": spec["signal"], "construction": spec["construction"], "window": "evaluation", **beta})
+    table = pd.concat([table[table["window"] == TUNING_LABEL], pd.DataFrame(rows)], ignore_index=True)
+    out = analyse(cfg, daily, exposures, factors, windows, table, 252)
+    assert out["checks"]["passed"].all()
+    pd.testing.assert_frame_equal(out["factor_loadings"], full["factor_loadings"])  # factor regressions keep the days
+    keys = out["beta_comparison"].query("window == 'evaluation'")
+    assert keys.query("market_proxy == 'equal_weighted'")["realised_beta"].notna().all()
+    value_weighted = lambda f: f.query("market_proxy == 'value_weighted'")["realised_beta"].tolist()
+    assert value_weighted(out["beta_comparison"]) == pytest.approx(value_weighted(full["beta_comparison"]))
+
+
 def test_a_missing_factor_day_stops_the_analysis():
     cfg, daily, exposures, factors, windows, table = synthetic()
     factors.iloc[100, 2] = np.nan
