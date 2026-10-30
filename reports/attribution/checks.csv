@@ -1,0 +1,27 @@
+check,book,window,value,limit,passed
+coverage,all,all,0.0,0.0,True
+date_alignment,all,all,0.9783489383574905,-0.1066646362105676,True
+reproduce_exposures,lightgbm_h5_optimised,evaluation,4.440892098500626e-16,1e-09,True
+decomposition,lightgbm_h5_optimised,"evaluation, gross_pnl",3.049318610115481e-20,1e-12,True
+decomposition,lightgbm_h5_optimised,"evaluation, net_pnl",1.8475906161984426e-20,1e-12,True
+reproduce_exposures,lightgbm_h5_optimised,tuning (in-sample for the lambdas),1.6653345369377348e-16,1e-09,True
+decomposition,lightgbm_h5_optimised,"tuning (in-sample for the lambdas), gross_pnl",2.0328790734103208e-20,1e-12,True
+decomposition,lightgbm_h5_optimised,"tuning (in-sample for the lambdas), net_pnl",4.0657581468206416e-20,1e-12,True
+reproduce_exposures,lightgbm_h5_neutral_volscaled,evaluation,1.7763568394002505e-15,1e-09,True
+decomposition,lightgbm_h5_neutral_volscaled,"evaluation, gross_pnl",2.981555974335137e-19,1e-12,True
+decomposition,lightgbm_h5_neutral_volscaled,"evaluation, net_pnl",1.0842021724855044e-19,1e-12,True
+reproduce_exposures,lightgbm_h5_neutral_volscaled,tuning (in-sample for the lambdas),6.175615574477433e-16,1e-09,True
+decomposition,lightgbm_h5_neutral_volscaled,"tuning (in-sample for the lambdas), gross_pnl",1.0842021724855044e-19,1e-12,True
+decomposition,lightgbm_h5_neutral_volscaled,"tuning (in-sample for the lambdas), net_pnl",1.6263032587282567e-19,1e-12,True
+reproduce_exposures,B0_h5_optimised,evaluation,1.7763568394002505e-15,1e-09,True
+decomposition,B0_h5_optimised,"evaluation, gross_pnl",4.0657581468206416e-20,1e-12,True
+decomposition,B0_h5_optimised,"evaluation, net_pnl",3.3881317890172014e-20,1e-12,True
+reproduce_exposures,B0_h5_optimised,tuning (in-sample for the lambdas),2.6645352591003757e-15,1e-09,True
+decomposition,B0_h5_optimised,"tuning (in-sample for the lambdas), gross_pnl",2.710505431213761e-19,1e-12,True
+decomposition,B0_h5_optimised,"tuning (in-sample for the lambdas), net_pnl",1.8973538018496328e-19,1e-12,True
+reproduce_exposures,B0_h5_neutral_volscaled,evaluation,1.7763568394002505e-15,1e-09,True
+decomposition,B0_h5_neutral_volscaled,"evaluation, gross_pnl",2.710505431213761e-20,1e-12,True
+decomposition,B0_h5_neutral_volscaled,"evaluation, net_pnl",2.168404344971009e-19,1e-12,True
+reproduce_exposures,B0_h5_neutral_volscaled,tuning (in-sample for the lambdas),3.9968028886505635e-15,1e-09,True
+decomposition,B0_h5_neutral_volscaled,"tuning (in-sample for the lambdas), gross_pnl",1.3552527156068805e-19,1e-12,True
+decomposition,B0_h5_neutral_volscaled,"tuning (in-sample for the lambdas), net_pnl",1.0842021724855044e-19,1e-12,True

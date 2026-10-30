@@ -588,6 +588,21 @@ python -m src.run_attribution --run        # -> reports/attribution/
 refuses a factor file that doesn't match the manifest, and writes only `checks.csv` if a check fails. It reads the
 recorded books from `data/processed/portfolio/` and reruns no backtest.
 
+### Results (evaluation window, gross, largest model)
+
+**The 0.80 gross Sharpe of LightGBM `neutral_volscaled` is not simply the published reversal factor.** The pre-registered
+rule returns `reversal_explained`: the `st_rev` beta has t 10.4 and alpha has t 1.89. That label is stronger than the numbers,
+because the factor accounts for 110 of the 592 bp a year and alpha for 355 bp. The outcome also sits close to the
+threshold, with alpha t between 1.57 and 2.06 across the nested models.
+
+Adding the project's own B0 book removes the `st_rev` loading (t 0.08). B0 takes 195 bp, about a third of the mean, and
+alpha falls to 285 bp (t 1.65). The B0 books are mostly the reversal factor. Momentum is LightGBM's largest risk (beta
+0.28, t 15.8) but earns little. Realised betas aren't noise, a benchmark effect or a stale-beta effect. The strongest
+evidence is that they shrink once `st_rev` is in the model.
+
+Full write-up: [`reports/attribution/SUMMARY.md`](reports/attribution/SUMMARY.md). Notebook:
+[`notebooks/05_attribution.ipynb`](notebooks/05_attribution.ipynb).
+
 ## Data attribution
 
 Data from Sharadar: Core US Equities Bundle (SEP prices, S&P 500 constituents,corporate actions). 

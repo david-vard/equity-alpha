@@ -1,0 +1,2 @@
+book,series,window,model,n_days,nw_lag,mean_return_ann,alpha_ann,alpha_t,reversal_beta,reversal_t,reversal_contribution_bp_per_year,t_threshold,outcome
+lightgbm_h5_neutral_volscaled,gross_pnl,evaluation,ff5_mom_strev_bab,1999,7,0.059229734171921525,0.0354567032543604,1.8863649578321369,0.16631745203734286,10.428023972244832,110.3256293248452,2.0,reversal_explained

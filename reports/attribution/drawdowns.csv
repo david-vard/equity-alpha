@@ -1,0 +1,47 @@
+book,signal,construction,window,series,rank,depth,peak,trough,recovery,days_to_trough,days_under_water
+lightgbm_h5_optimised,lightgbm_h5_rank,optimised,evaluation,gross_pnl,1,-0.05216627559143118,2019-10-31,2021-01-27,,311,530
+lightgbm_h5_optimised,lightgbm_h5_rank,optimised,evaluation,gross_pnl,2,-0.04903227117924849,2016-05-16,2017-01-17,2018-08-24,169,573
+lightgbm_h5_optimised,lightgbm_h5_rank,optimised,evaluation,gross_pnl,3,-0.03221345367977686,2015-11-23,2016-02-05,2016-05-10,50,114
+lightgbm_h5_optimised,lightgbm_h5_rank,optimised,evaluation,net_pnl,1,-0.05542037480843025,2019-10-31,2021-01-27,,311,530
+lightgbm_h5_optimised,lightgbm_h5_rank,optimised,evaluation,net_pnl,2,-0.05251645709576326,2015-11-23,2017-01-17,2019-05-30,288,882
+lightgbm_h5_optimised,lightgbm_h5_rank,optimised,evaluation,net_pnl,3,-0.021699048504069708,2014-05-28,2014-10-13,2015-07-24,96,291
+lightgbm_h5_optimised,lightgbm_h5_rank,optimised,tuning (in-sample for the lambdas),gross_pnl,1,-0.09724079596381131,2008-09-30,2010-01-19,2013-03-06,327,1113
+lightgbm_h5_optimised,lightgbm_h5_rank,optimised,tuning (in-sample for the lambdas),gross_pnl,2,-0.02121360159526195,2013-10-23,2013-11-29,,26,47
+lightgbm_h5_optimised,lightgbm_h5_rank,optimised,tuning (in-sample for the lambdas),gross_pnl,3,-0.019457753218062854,2008-09-16,2008-09-19,2008-09-30,3,9
+lightgbm_h5_optimised,lightgbm_h5_rank,optimised,tuning (in-sample for the lambdas),net_pnl,1,-0.10328092233671889,2008-09-30,2010-01-19,,327,1322
+lightgbm_h5_optimised,lightgbm_h5_rank,optimised,tuning (in-sample for the lambdas),net_pnl,2,-0.01951510724676231,2008-09-16,2008-09-19,2008-09-30,3,9
+lightgbm_h5_optimised,lightgbm_h5_rank,optimised,tuning (in-sample for the lambdas),net_pnl,3,-0.01667544276127248,2008-01-09,2008-03-24,2008-07-24,50,135
+lightgbm_h5_neutral_volscaled,lightgbm_h5_rank,neutral_volscaled,evaluation,gross_pnl,1,-0.10919279870484455,2020-11-06,2021-10-12,,233,273
+lightgbm_h5_neutral_volscaled,lightgbm_h5_rank,neutral_volscaled,evaluation,gross_pnl,2,-0.09827273166646688,2019-08-27,2020-03-18,2020-03-26,140,145
+lightgbm_h5_neutral_volscaled,lightgbm_h5_rank,neutral_volscaled,evaluation,gross_pnl,3,-0.06334186210906412,2014-03-10,2014-10-14,2014-12-01,152,184
+lightgbm_h5_neutral_volscaled,lightgbm_h5_rank,neutral_volscaled,evaluation,net_pnl,1,-0.2561574156244971,2016-06-27,2021-10-12,,1333,1373
+lightgbm_h5_neutral_volscaled,lightgbm_h5_rank,neutral_volscaled,evaluation,net_pnl,2,-0.10181813750726468,2014-03-10,2014-10-14,2015-08-03,152,352
+lightgbm_h5_neutral_volscaled,lightgbm_h5_rank,neutral_volscaled,evaluation,net_pnl,3,-0.061410096079790547,2016-01-12,2016-02-08,2016-05-12,18,83
+lightgbm_h5_neutral_volscaled,lightgbm_h5_rank,neutral_volscaled,tuning (in-sample for the lambdas),gross_pnl,1,-0.11514593650032477,2008-07-14,2008-09-09,2010-09-17,40,549
+lightgbm_h5_neutral_volscaled,lightgbm_h5_rank,neutral_volscaled,tuning (in-sample for the lambdas),gross_pnl,2,-0.08966858767618874,2008-01-03,2008-02-01,2008-07-11,20,130
+lightgbm_h5_neutral_volscaled,lightgbm_h5_rank,neutral_volscaled,tuning (in-sample for the lambdas),gross_pnl,3,-0.04714026959938121,2007-04-23,2007-08-09,2007-08-22,76,84
+lightgbm_h5_neutral_volscaled,lightgbm_h5_rank,neutral_volscaled,tuning (in-sample for the lambdas),net_pnl,1,-0.4730021548511052,2007-02-07,2013-02-07,,1511,1737
+lightgbm_h5_neutral_volscaled,lightgbm_h5_rank,neutral_volscaled,tuning (in-sample for the lambdas),net_pnl,2,-0.00389486289155838,2007-01-29,2007-01-30,2007-02-01,1,2
+lightgbm_h5_neutral_volscaled,lightgbm_h5_rank,neutral_volscaled,tuning (in-sample for the lambdas),net_pnl,3,-0.0025916612331316896,2007-01-24,2007-01-26,2007-01-29,2,2
+B0_h5_optimised,B0_reversal_h5,optimised,evaluation,gross_pnl,1,-0.19313168959609667,2015-05-07,2020-03-18,2020-04-09,1224,1239
+B0_h5_optimised,B0_reversal_h5,optimised,evaluation,gross_pnl,2,-0.07205525116438641,2020-06-11,2020-09-01,2020-11-27,57,117
+B0_h5_optimised,B0_reversal_h5,optimised,evaluation,gross_pnl,3,-0.060283961695269006,2021-06-30,2021-11-29,,105,112
+B0_h5_optimised,B0_reversal_h5,optimised,evaluation,net_pnl,1,-0.28616730391714895,2015-05-07,2020-03-18,,1224,1660
+B0_h5_optimised,B0_reversal_h5,optimised,evaluation,net_pnl,2,-0.03162510034419962,,2014-02-21,2014-04-25,35,78
+B0_h5_optimised,B0_reversal_h5,optimised,evaluation,net_pnl,3,-0.02062007891375409,2014-10-16,2015-03-16,2015-04-08,102,117
+B0_h5_optimised,B0_reversal_h5,optimised,tuning (in-sample for the lambdas),gross_pnl,1,-0.18978714102625563,2007-02-14,2008-07-15,2008-09-25,356,406
+B0_h5_optimised,B0_reversal_h5,optimised,tuning (in-sample for the lambdas),gross_pnl,2,-0.12044018537579049,2008-11-04,2008-11-21,2008-12-10,13,24
+B0_h5_optimised,B0_reversal_h5,optimised,tuning (in-sample for the lambdas),gross_pnl,3,-0.10427701765808414,2009-01-14,2009-03-05,2009-03-20,34,44
+B0_h5_optimised,B0_reversal_h5,optimised,tuning (in-sample for the lambdas),net_pnl,1,-0.2561381922594751,2007-02-14,2008-07-15,2008-10-14,356,419
+B0_h5_optimised,B0_reversal_h5,optimised,tuning (in-sample for the lambdas),net_pnl,2,-0.17851132266742437,2011-04-06,2012-06-27,,309,688
+B0_h5_optimised,B0_reversal_h5,optimised,tuning (in-sample for the lambdas),net_pnl,3,-0.1269179460884477,2008-11-04,2008-11-21,2008-12-19,13,31
+B0_h5_neutral_volscaled,B0_reversal_h5,neutral_volscaled,evaluation,gross_pnl,1,-0.2399366200718126,2019-08-01,2020-03-18,2020-04-20,158,179
+B0_h5_neutral_volscaled,B0_reversal_h5,neutral_volscaled,evaluation,gross_pnl,2,-0.08001662197819398,2014-07-03,2015-08-07,2016-10-10,276,571
+B0_h5_neutral_volscaled,B0_reversal_h5,neutral_volscaled,evaluation,gross_pnl,3,-0.07450786479680194,2021-05-04,2021-12-06,,150,152
+B0_h5_neutral_volscaled,B0_reversal_h5,neutral_volscaled,evaluation,net_pnl,1,-0.7051593029352199,2014-01-07,2020-03-18,,1559,1995
+B0_h5_neutral_volscaled,B0_reversal_h5,neutral_volscaled,tuning (in-sample for the lambdas),gross_pnl,1,-0.14764022067555715,2007-12-11,2008-09-18,2009-03-30,194,325
+B0_h5_neutral_volscaled,B0_reversal_h5,neutral_volscaled,tuning (in-sample for the lambdas),gross_pnl,2,-0.0710991648603446,2011-12-08,2012-11-23,2013-05-20,240,360
+B0_h5_neutral_volscaled,B0_reversal_h5,neutral_volscaled,tuning (in-sample for the lambdas),gross_pnl,3,-0.0446198903381709,2007-01-29,2007-08-07,2007-08-23,132,143
+B0_h5_neutral_volscaled,B0_reversal_h5,neutral_volscaled,tuning (in-sample for the lambdas),net_pnl,1,-0.8331022495210514,2007-01-29,2013-12-31,,1744,1744
+B0_h5_neutral_volscaled,B0_reversal_h5,neutral_volscaled,tuning (in-sample for the lambdas),net_pnl,2,-0.004641049089221968,,2007-01-11,2007-01-19,1,5
+B0_h5_neutral_volscaled,B0_reversal_h5,neutral_volscaled,tuning (in-sample for the lambdas),net_pnl,3,-0.0017741976764939589,2007-01-22,2007-01-23,2007-01-25,1,2

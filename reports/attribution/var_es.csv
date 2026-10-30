@@ -1,0 +1,65 @@
+book,signal,construction,window,series,confidence,horizon_days,var,es,var_in_daily_vols,es_in_daily_vols
+lightgbm_h5_optimised,lightgbm_h5_rank,optimised,evaluation,gross_pnl,0.95,1,0.002455472204803231,0.003371774825155876,1.6326877984473365,2.2419539530422203
+lightgbm_h5_optimised,lightgbm_h5_rank,optimised,evaluation,gross_pnl,0.95,5,0.005107865945443344,0.0071008460279510036,3.3963122811639828,4.721480717969634
+lightgbm_h5_optimised,lightgbm_h5_rank,optimised,evaluation,gross_pnl,0.99,1,0.003807473089244805,0.004939334041856041,2.5316575946436877,3.2842523759050914
+lightgbm_h5_optimised,lightgbm_h5_rank,optimised,evaluation,gross_pnl,0.99,5,0.008208358449945352,0.010459397106155774,5.457885721651576,6.954641962931269
+lightgbm_h5_optimised,lightgbm_h5_rank,optimised,evaluation,net_pnl,0.95,1,0.002473316698638002,0.0033861044877018715,1.6446642253491013,2.251634381187025
+lightgbm_h5_optimised,lightgbm_h5_rank,optimised,evaluation,net_pnl,0.95,5,0.005168326130834112,0.007173590027516386,3.4367459278468635,4.770172332590582
+lightgbm_h5_optimised,lightgbm_h5_rank,optimised,evaluation,net_pnl,0.99,1,0.0038198437434550803,0.00495602929141764,2.5400549613172103,3.295576373161357
+lightgbm_h5_optimised,lightgbm_h5_rank,optimised,evaluation,net_pnl,0.99,5,0.008295802831105668,0.010537462840804316,5.5164023856640005,7.007023471664556
+lightgbm_h5_optimised,lightgbm_h5_rank,optimised,tuning (in-sample for the lambdas),gross_pnl,0.95,1,0.002831336547002323,0.004239595912384075,1.524892486037324,2.2833484622214093
+lightgbm_h5_optimised,lightgbm_h5_rank,optimised,tuning (in-sample for the lambdas),gross_pnl,0.95,5,0.006188120786589387,0.009948332542514671,3.3327789662278495,5.357942191203865
+lightgbm_h5_optimised,lightgbm_h5_rank,optimised,tuning (in-sample for the lambdas),gross_pnl,0.99,1,0.004883558789373681,0.006762766558212494,2.630171998069909,3.642269909721992
+lightgbm_h5_optimised,lightgbm_h5_rank,optimised,tuning (in-sample for the lambdas),gross_pnl,0.99,5,0.012027637509270491,0.016643286299390887,6.47780783322478,8.963689691986406
+lightgbm_h5_optimised,lightgbm_h5_rank,optimised,tuning (in-sample for the lambdas),net_pnl,0.95,1,0.002843942250299485,0.004256956931927108,1.5316436088744252,2.2926417993731145
+lightgbm_h5_optimised,lightgbm_h5_rank,optimised,tuning (in-sample for the lambdas),net_pnl,0.95,5,0.006274564565164147,0.010033848062891457,3.3792517107868725,5.40386474314883
+lightgbm_h5_optimised,lightgbm_h5_rank,optimised,tuning (in-sample for the lambdas),net_pnl,0.99,1,0.004899729656063721,0.006780500824155059,2.638815753777067,3.6517305339766413
+lightgbm_h5_optimised,lightgbm_h5_rank,optimised,tuning (in-sample for the lambdas),net_pnl,0.99,5,0.012120256568295493,0.01674516492528989,6.5275282959044505,9.018335317697677
+lightgbm_h5_neutral_volscaled,lightgbm_h5_rank,neutral_volscaled,evaluation,gross_pnl,0.95,1,0.0069673948444359144,0.010907926498141462,1.4891536323551224,2.3313704374228186
+lightgbm_h5_neutral_volscaled,lightgbm_h5_rank,neutral_volscaled,evaluation,gross_pnl,0.95,5,0.014832919829317108,0.023726131856542314,3.170266209313446,5.071028156832852
+lightgbm_h5_neutral_volscaled,lightgbm_h5_rank,neutral_volscaled,evaluation,gross_pnl,0.99,1,0.01402261128928273,0.017966565958583453,2.997077530809858,3.840025943059431
+lightgbm_h5_neutral_volscaled,lightgbm_h5_rank,neutral_volscaled,evaluation,gross_pnl,0.99,5,0.02844463376536462,0.03825521392643869,6.079521921530092,8.176354584034
+lightgbm_h5_neutral_volscaled,lightgbm_h5_rank,neutral_volscaled,evaluation,net_pnl,0.95,1,0.007228482739504204,0.011238654192570361,1.545419921835872,2.4027781084545787
+lightgbm_h5_neutral_volscaled,lightgbm_h5_rank,neutral_volscaled,evaluation,net_pnl,0.95,5,0.016553749827022263,0.025203614403286282,3.5391237256412134,5.38842924646448
+lightgbm_h5_neutral_volscaled,lightgbm_h5_rank,neutral_volscaled,evaluation,net_pnl,0.99,1,0.014282180115516355,0.018268833112219572,3.053471450812516,3.905801488052725
+lightgbm_h5_neutral_volscaled,lightgbm_h5_rank,neutral_volscaled,evaluation,net_pnl,0.99,5,0.03128606145383359,0.04005063503072291,6.68883144484787,8.56266127888716
+lightgbm_h5_neutral_volscaled,lightgbm_h5_rank,neutral_volscaled,tuning (in-sample for the lambdas),gross_pnl,0.95,1,0.005811724127283706,0.00991781848008776,1.454441361266745,2.4820320261342568
+lightgbm_h5_neutral_volscaled,lightgbm_h5_rank,neutral_volscaled,tuning (in-sample for the lambdas),gross_pnl,0.95,5,0.011421952298732158,0.02083550792634676,2.8584563695483314,5.214291636592769
+lightgbm_h5_neutral_volscaled,lightgbm_h5_rank,neutral_volscaled,tuning (in-sample for the lambdas),gross_pnl,0.99,1,0.012792459677568167,0.017158212487954204,3.2014393766636413,4.294012135009577
+lightgbm_h5_neutral_volscaled,lightgbm_h5_rank,neutral_volscaled,tuning (in-sample for the lambdas),gross_pnl,0.99,5,0.028436421352367482,0.03549972435606209,7.116495290464275,8.88415662653918
+lightgbm_h5_neutral_volscaled,lightgbm_h5_rank,neutral_volscaled,tuning (in-sample for the lambdas),net_pnl,0.95,1,0.006246499358556424,0.010465046894652592,1.561164761378605,2.615490933450105
+lightgbm_h5_neutral_volscaled,lightgbm_h5_rank,neutral_volscaled,tuning (in-sample for the lambdas),net_pnl,0.95,5,0.01430579837636568,0.0235766049958237,3.575395918031554,5.892414742987964
+lightgbm_h5_neutral_volscaled,lightgbm_h5_rank,neutral_volscaled,tuning (in-sample for the lambdas),net_pnl,0.99,1,0.013287039421939283,0.01766245362845094,3.320781214868124,4.4143125007209925
+lightgbm_h5_neutral_volscaled,lightgbm_h5_rank,neutral_volscaled,tuning (in-sample for the lambdas),net_pnl,0.99,5,0.030732816322396512,0.03785527367930305,7.6809404926497375,9.461030236002243
+B0_h5_optimised,B0_reversal_h5,optimised,evaluation,gross_pnl,0.95,1,0.0056626792964867174,0.008891957360562301,1.3024555430433766,2.0452119123106844
+B0_h5_optimised,B0_reversal_h5,optimised,evaluation,gross_pnl,0.95,5,0.01320091522504142,0.021160582324228603,3.0363021297653723,4.867080810901064
+B0_h5_optimised,B0_reversal_h5,optimised,evaluation,gross_pnl,0.99,1,0.010678716090770318,0.01595951710657484,2.4561788222122254,3.670799710068438
+B0_h5_optimised,B0_reversal_h5,optimised,evaluation,gross_pnl,0.99,5,0.02218226023714736,0.03924813085770106,5.102073822373852,9.027342519895157
+B0_h5_optimised,B0_reversal_h5,optimised,evaluation,net_pnl,0.95,1,0.005780920889376044,0.009027441988232923,1.331365674907441,2.0790504878624505
+B0_h5_optimised,B0_reversal_h5,optimised,evaluation,net_pnl,0.95,5,0.013581800805196984,0.02175487108106801,3.1279347601349374,5.010220546798839
+B0_h5_optimised,B0_reversal_h5,optimised,evaluation,net_pnl,0.99,1,0.01078790721971396,0.016143206484438677,2.4844915976636974,3.7178351697950047
+B0_h5_optimised,B0_reversal_h5,optimised,evaluation,net_pnl,0.99,5,0.02308669073763135,0.03996237874284054,5.31694312782811,9.203471274558684
+B0_h5_optimised,B0_reversal_h5,optimised,tuning (in-sample for the lambdas),gross_pnl,0.95,1,0.008531945860946993,0.012776056443762285,1.3923517684778035,2.084959875925679
+B0_h5_optimised,B0_reversal_h5,optimised,tuning (in-sample for the lambdas),gross_pnl,0.95,5,0.01945412503039341,0.031168016090404437,3.1747723006824238,5.086394479137315
+B0_h5_optimised,B0_reversal_h5,optimised,tuning (in-sample for the lambdas),gross_pnl,0.99,1,0.015284326938482449,0.019707423134134237,2.4942914535122114,3.2161087166001483
+B0_h5_optimised,B0_reversal_h5,optimised,tuning (in-sample for the lambdas),gross_pnl,0.99,5,0.0415796833846534,0.05046619781123848,6.785503170896057,8.235717961181411
+B0_h5_optimised,B0_reversal_h5,optimised,tuning (in-sample for the lambdas),net_pnl,0.95,1,0.008874714617478442,0.013087966804444112,1.4504225723051536,2.1390076522978854
+B0_h5_optimised,B0_reversal_h5,optimised,tuning (in-sample for the lambdas),net_pnl,0.95,5,0.020468074576424137,0.03254466777999714,3.3451619186494845,5.318877596730199
+B0_h5_optimised,B0_reversal_h5,optimised,tuning (in-sample for the lambdas),net_pnl,0.99,1,0.015557397092788458,0.02010414980588175,2.5425944249806482,3.2856845467488625
+B0_h5_optimised,B0_reversal_h5,optimised,tuning (in-sample for the lambdas),net_pnl,0.99,5,0.04285148962134973,0.05233207591843629,7.003353964903609,8.552796054782133
+B0_h5_neutral_volscaled,B0_reversal_h5,neutral_volscaled,evaluation,gross_pnl,0.95,1,0.00583042365606953,0.009618690336499881,1.2829126951428709,2.1164739770664434
+B0_h5_neutral_volscaled,B0_reversal_h5,neutral_volscaled,evaluation,gross_pnl,0.95,5,0.012730502548355619,0.02394405718561922,2.8011898102519854,5.26859397338646
+B0_h5_neutral_volscaled,B0_reversal_h5,neutral_volscaled,evaluation,gross_pnl,0.99,1,0.01085725686169606,0.018020606256780654,2.3890052394043066,3.9652117761507744
+B0_h5_neutral_volscaled,B0_reversal_h5,neutral_volscaled,evaluation,gross_pnl,0.99,5,0.029591341892654725,0.051832350658556625,6.511209205334477,11.405068413808289
+B0_h5_neutral_volscaled,B0_reversal_h5,neutral_volscaled,evaluation,net_pnl,0.95,1,0.006313827030398722,0.010123892852841956,1.3921847612186278,2.2322957670645414
+B0_h5_neutral_volscaled,B0_reversal_h5,neutral_volscaled,evaluation,net_pnl,0.95,5,0.014970071626574391,0.026353207381046365,3.3008673649952835,5.810823379938255
+B0_h5_neutral_volscaled,B0_reversal_h5,neutral_volscaled,evaluation,net_pnl,0.99,1,0.011556491340733171,0.018572534742014292,2.5481805346048154,4.095202437530664
+B0_h5_neutral_volscaled,B0_reversal_h5,neutral_volscaled,evaluation,net_pnl,0.99,5,0.03191398832238662,0.05389548602349773,7.036963160096279,11.883834317780913
+B0_h5_neutral_volscaled,B0_reversal_h5,neutral_volscaled,tuning (in-sample for the lambdas),gross_pnl,0.95,1,0.006187333315639232,0.009467061134130351,1.466039191867755,2.2431444931796443
+B0_h5_neutral_volscaled,B0_reversal_h5,neutral_volscaled,tuning (in-sample for the lambdas),gross_pnl,0.95,5,0.012520469600606555,0.020729058043654183,2.9666252323407707,4.911584676662748
+B0_h5_neutral_volscaled,B0_reversal_h5,neutral_volscaled,tuning (in-sample for the lambdas),gross_pnl,0.99,1,0.01094631879889878,0.015398040978179171,2.5936427774630797,3.648442778238167
+B0_h5_neutral_volscaled,B0_reversal_h5,neutral_volscaled,tuning (in-sample for the lambdas),gross_pnl,0.99,5,0.02557052542320887,0.03600012848573553,6.058731688548459,8.529942800876963
+B0_h5_neutral_volscaled,B0_reversal_h5,neutral_volscaled,tuning (in-sample for the lambdas),net_pnl,0.95,1,0.006774024402905382,0.01024566730537766,1.6071119358963597,2.4307462209072184
+B0_h5_neutral_volscaled,B0_reversal_h5,neutral_volscaled,tuning (in-sample for the lambdas),net_pnl,0.95,5,0.015979702230891468,0.024496851334850932,3.791124545745761,5.811786292832389
+B0_h5_neutral_volscaled,B0_reversal_h5,neutral_volscaled,tuning (in-sample for the lambdas),net_pnl,0.99,1,0.011804971421569055,0.016198870814154335,2.8006852863390908,3.8431214718247664
+B0_h5_neutral_volscaled,B0_reversal_h5,neutral_volscaled,tuning (in-sample for the lambdas),net_pnl,0.99,5,0.03009667657769277,0.03982788363125573,7.14032387277452,9.449016324450993

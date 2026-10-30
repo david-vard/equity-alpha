@@ -1,0 +1,43 @@
+{
+  "config_commit": "972af1dc6dab4c4f27e65b5876625c4889eeb08c",
+  "config_dirty": false,
+  "config_sha256": "4d420fa5f231920e512242f6fd173555bc56a39027786ca47d2f6be43dc8c8b5",
+  "code_commit": "02e044441afda64acc79b567fcd5fde8564513e5",
+  "code_dirty": false,
+  "features_config_sha256": "42109759ae31f519774ae5ebdcdf59468732ed5eb2511704420bf1ed47fc136d",
+  "panel_sha256": "747c69f3ea849f522e4f3e277de4771ea9d79c794be27425f89eb25f8cd6ee4c",
+  "panel_bytes": 649981296,
+  "factor_files": {
+    "F-F_Research_Data_5_Factors_2x3_daily_CSV.zip": {
+      "url": "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_5_Factors_2x3_daily_CSV.zip",
+      "bytes": 150489,
+      "sha256": "e58577223032aa45071a46686f7068900c371b516c9eb04e28e974c34264f84f",
+      "downloaded_at": "2026-10-30T10:46:25+00:00"
+    },
+    "F-F_Momentum_Factor_daily_CSV.zip": {
+      "url": "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Momentum_Factor_daily_CSV.zip",
+      "bytes": 85338,
+      "sha256": "e56d5bc845544e2993e77353b12c611cfce3149ef754f9b59fc67904ddadd369",
+      "downloaded_at": "2026-10-30T10:46:26+00:00"
+    },
+    "F-F_ST_Reversal_Factor_daily_CSV.zip": {
+      "url": "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_ST_Reversal_Factor_daily_CSV.zip",
+      "bytes": 86110,
+      "sha256": "00b2781636ebcbcfc5072844d11bedf1cdaed5e0635fc3c8f36159f26e01fa41",
+      "downloaded_at": "2026-10-30T10:46:26+00:00"
+    },
+    "Betting-Against-Beta-Equity-Factors-Daily.xlsx": {
+      "url": "https://www.aqr.com/-/media/AQR/Documents/Insights/Data-Sets/Betting-Against-Beta-Equity-Factors-Daily.xlsx",
+      "bytes": 31506392,
+      "sha256": "f382f361953bd03e9c667a12de26e95a84f51945e07fab876eb233e0c53211a4",
+      "downloaded_at": "2026-10-30T10:46:53+00:00"
+    }
+  },
+  "last_factor_date": "2021-12-31",
+  "holdout_start": "2022-01-01",
+  "portfolio_config_sha256": "6e2e5c1a33960b5a6fe7af7010651d7f33ae2f9024ada4effa1f86990f1dff2d",
+  "book_files_sha256": {
+    "data/processed/portfolio/B0_reversal_h5/portfolio_daily_returns.parquet": "8ddf88c3a646eb7937c798588c49cbb5eb93828c9e8ca617b694109e37f55939",
+    "data/processed/portfolio/lightgbm_h5_rank/portfolio_daily_returns.parquet": "6c11d68b46e7b56a06dc495891e6de1e31cc681abdd2683b3b4b2de4c6e4ff28"
+  }
+}
