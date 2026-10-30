@@ -681,6 +681,64 @@ impact (break-even Y 0.61). Reversal depends most on the rebalance offset: B0 `o
 Full write-up: [`reports/sensitivity/SUMMARY.md`](reports/sensitivity/SUMMARY.md). Notebook:
 [`notebooks/06_sensitivity.ipynb`](notebooks/06_sensitivity.ipynb).
 
+## Second round: design
+
+Do three declared ways of trading less, or trading only liquid names, change the portfolio result? The design is fixed in
+[`configs/second_round.yaml`](configs/second_round.yaml) and is committed before any variant is simulated.
+`src.second_round.load_second_round_config` rejects unknown or missing keys, wrong types, methods the design does not
+define, grids without their recorded point, and lambda points that don't extend outward from the recorded choice. The
+runner will use the same guard as the other runners (`src.utils.provenance`).
+
+**Every evaluation-window number in this round is a second look.** The ideas came from seeing the evaluation window, so
+those numbers are weaker evidence than the pre-registered headline and can't replace it. Every such row carries the label
+`second_look`, and no confirmatory test is declared. Holdout rules, lag, costs and $100m AUM are unchanged.
+`configs/portfolio.yaml` and the engine do not change.
+
+### Variants
+
+All use `lightgbm_h5_rank` and `B0_reversal_h5`. Each grid includes the recorded book, so keeping it is an allowed outcome.
+
+- **No-trade band, `neutral_volscaled`.** Bands are 0, 0.5, 1, 2 and 4 times the mean |target weight| at each rebalance.
+  - A name moves only if its gap to target exceeds the band, and then only to the band's edge.
+  - A name without a score is sold in full, as in the recorded book.
+  - Zero dollars and beta are restored by moving only the traded names. With fewer than 3 traded names, the tranche holds.
+  - The book is scaled down if gross or ex-ante vol exceed the limits, and never scaled up, which would trade every name.
+    So realised vol can fall below the 10% target. It is reported.
+- **Liquid universe, `neutral_volscaled` and `optimised`.** Each date keeps the top 25%, 50% or 100% of scored names by
+  `dollar_volume_21d` at the score date, and scores are standardised after that cut.
+  - Lambdas stay at their recorded values, and the Grinold IC isn't re-estimated on the smaller universe.
+  - `min_names_per_date` stays at 100. At 25% of about 500 names that margin is thin, and a date below it holds no position
+    from that rebalance. Those dates are counted and reported.
+- **Wider lambda grid, `optimised`.** New points only extend past the grid edge that the recorded choice reached:
+  - LightGBM, from (100, 4): (100, 8), (100, 16), (300, 4), (300, 8), (300, 16).
+  - B0, from (3, 1): (1, 0.5), (1, 1), (1, 2).
+
+### Choosing on 2007-2013 only
+
+Each variant, signal and construction gets one choice: the highest net Sharpe on the tuning window, at base costs and AUM,
+with ties going to the first in config order. Nothing after the last tuning date is read. A choice on a grid edge is flagged,
+and no grid is extended again.
+
+**A holdout candidate is fixed before evaluation runs.** It's the chosen LightGBM variant with the highest tuning net Sharpe,
+and only if that exceeds the headline's tuning figure of 0.35. Otherwise there is no candidate. This round can send at most
+one book to the holdout.
+
+### Evaluation
+
+Each chosen variant runs once, at base costs and AUM. A chosen recorded point isn't rerun. Each row reports net Sharpe, NW t, net
+return, gross Sharpe, turnover and the break-even cost multiplier, with a stationary-bootstrap interval using the settings of
+`configs/sensitivity.yaml`, and a paired interval for the variant minus its recorded book.
+
+### Checks and outputs
+
+The run stops before writing results if any of these fails:
+- band 0 and fraction 1 of `neutral_volscaled` must reproduce the recorded daily net series;
+- fraction 1 of `optimised` must reproduce the recorded tuning net Sharpe, within a wider tolerance because the solver reruns;
+- a tuning run must not read past the last tuning date, and no date may reach `holdout_start`;
+- evaluation refuses a tuning output made with a different config.
+
+The results will go to `reports/second_round/`, with a summary there and `notebooks/07_second_round.ipynb`.
+
 ## Data attribution
 
 Data from Sharadar: Core US Equities Bundle (SEP prices, S&P 500 constituents,corporate actions). 
@@ -723,3 +781,6 @@ The sensitivity tests check that the stationary bootstrap is reproducible and ha
 resampled Sharpes match the project's Sharpe. They also check that repricing at the base point returns the recorded net
 series, that break-evens set the mean net return to zero, that a book minus itself gives exactly zero, and that each spoiled
 input fails its check with only `checks.csv` written.
+
+The second-round config tests do the same for `configs/second_round.yaml`, including selection outside the tuning window, a
+second holdout candidate, and a lambda point that doesn't extend past a grid edge the recorded choice reached.

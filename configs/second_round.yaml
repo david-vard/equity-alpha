@@ -1,0 +1,99 @@
+# Second-round design, fixed before any variant is simulated. Question: do three pre-declared ways of
+# trading less, or trading only liquid names, change the portfolio result? Each choice is made on the
+# tuning window (2007-2013) only, and each chosen variant is then run once. The ideas came from seeing
+# the evaluation window in reports/portfolio/, reports/attribution/ and reports/sensitivity/, so every
+# evaluation-window number here is a second look: weaker evidence than the pre-registered headline, and
+# it can't replace it. Holdout rules, lag, costs and $100m AUM are unchanged, and configs/portfolio.yaml
+# and the engine do not change. See "Second round: design" in README.md.
+
+portfolio_config: configs/portfolio.yaml
+research_config: configs/research.yaml
+features_config: configs/features.yaml
+models_config: configs/models.yaml
+
+recorded:                          # the first-round results these variants are compared with
+  hyperparameters: reports/portfolio/hyperparameters.csv
+  lambda_grid: reports/portfolio/lambda_grid.csv
+  summary: reports/portfolio/summary.csv
+  portfolio_metadata: reports/portfolio/run_metadata.json   # its config hash must match the portfolio config
+  daily_returns: data/processed/portfolio/{signal}/portfolio_daily_returns.parquet
+
+signals:
+  primary: lightgbm_h5_rank
+  benchmark: B0_reversal_h5
+
+no_trade_band:
+  construction: neutral_volscaled
+  bands: [0.0, 0.5, 1.0, 2.0, 4.0]   # multiples of the band unit; 0 is the recorded book
+  band_unit: mean_abs_target_weight  # mean |w*| over the names the target holds, at each rebalance
+  trade_rule: to_band_edge           # a name moves only if |w* - w| exceeds the band, and then only to the edge
+  unscored_names: sold_in_full       # the band never keeps a name without a score (timing.unscored_holding)
+  neutralise: traded_names_only      # least-change projection to zero dollars and beta, moving only traded
+                                     # names; fewer than 3 traded names means the tranche holds
+  scale: down_only                   # scaled down if gross or ex-ante vol exceed the construction's limits;
+                                     # never scaled up, which would trade every name
+
+liquid_universe:
+  constructions: [neutral_volscaled, optimised]
+  fractions: [0.25, 0.5, 1.0]        # the most liquid share of each date's scored names; 1 is the recorded book
+  rank_feature: dollar_volume_21d    # known at the score date
+  rank_date: score_date
+  rescore: within_kept_names         # scores are standardised and portfolios built after names are removed
+  held_outside: sold_at_rebalance    # as timing.unscored_holding
+  lambdas: frozen_first_round        # optimised keeps its recorded lambdas
+  validation_ic: full_universe       # the Grinold IC is not re-estimated on the smaller universe
+
+wider_lambda_grid:
+  construction: optimised
+  points:                            # only outward from the recorded choice, in the direction of its grid edge
+    lightgbm_h5_rank:
+      extends_from: [100.0, 4.0]
+      added: [[100.0, 8.0], [100.0, 16.0], [300.0, 4.0], [300.0, 8.0], [300.0, 16.0]]
+    B0_reversal_h5:
+      extends_from: [3.0, 1.0]
+      added: [[1.0, 0.5], [1.0, 1.0], [1.0, 2.0]]
+
+selection:
+  metric: net_sharpe               # annualised Sharpe of daily net returns at base costs and base AUM
+  window: tuning                   # 2007-2013 only; no row after the last tuning date is read
+  ties: first_in_config_order
+  per: variant_signal_construction # one choice for each variant, signal and construction
+  recorded_point_competes: true    # keeping the recorded book is an allowed outcome
+  grid_edge: flag_and_stop         # a choice on an edge is flagged, and no grid is extended again
+
+holdout_candidate:                 # the only way a second-round book can reach the holdout
+  signal: lightgbm_h5_rank
+  metric: net_sharpe
+  window: tuning
+  must_exceed: headline_tuning_net_sharpe   # otherwise there is no candidate
+  at_most: 1                       # the highest of the chosen LightGBM variants; fixed before evaluation is run
+
+evaluation:
+  runs: chosen_variants_once       # a chosen recorded point is not rerun: its recorded numbers are used
+  scenario: base                   # $100m, cost multiplier 1
+  evidence_label: second_look      # on every row of every evaluation-window table
+  confirmatory_tests: none         # no outcome is declared: this round confirms nothing
+  statistics: [net_sharpe, net_nw_t, net_return_ann, gross_sharpe, annual_turnover, breakeven_cost_multiplier]
+
+bootstrap:                         # as configs/sensitivity.yaml, so the intervals are comparable
+  method: stationary
+  n_resamples: 10000
+  seed: 20260101
+  mean_block_length: 21
+  confidence: 0.95
+  interval: percentile
+  paired_against: recorded_book    # chosen variant minus the recorded book of its signal and construction
+
+checks:                            # any failure stops the run before results are written
+  recorded_book_tolerance: 1.0e-9  # band 0 and fraction 1 of neutral_volscaled vs the recorded daily net series
+  recorded_optimised_sharpe_tolerance: 1.0e-6   # fraction 1 of optimised vs the recorded tuning net Sharpe; the solver is
+                                   # rerun, so this is compared less tightly than the closed-form book
+  tuning_isolation: no_date_after_tuning_end
+  last_date: before_holdout_start
+  evaluation_needs_matching_tuning_config: true
+
+outputs:
+  reports_dir: reports/second_round      # tidy CSVs, run_metadata.json and SUMMARY.md
+  figures_dir: reports/second_round/figures
+  data_dir: data/processed/second_round  # gitignored
+  notebook: notebooks/07_second_round.ipynb
