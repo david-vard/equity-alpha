@@ -739,6 +739,20 @@ The run stops before writing results if any of these fails:
 
 The results will go to `reports/second_round/`, with a summary there and `notebooks/07_second_round.ipynb`.
 
+### Running the second round
+
+Run these in order. `--shard i/n` runs every n-th variant from i, so a run can be split across n processes:
+
+```bash
+python -m src.run_second_round --tune --shard 0/4       # variants on 2007-2013 only
+python -m src.run_second_round --select                 # checks, choices and the holdout candidate
+python -m src.run_second_round --evaluate --shard 0/2   # the chosen variants, once
+python -m src.run_second_round --report                 # -> reports/second_round/evaluation.csv
+```
+
+`--select` writes only `checks.csv` if a check fails. It writes the holdout candidate before any evaluation-window return of a
+variant exists. `--evaluate` refuses a selection made with a different config.
+
 ## Data attribution
 
 Data from Sharadar: Core US Equities Bundle (SEP prices, S&P 500 constituents,corporate actions). 
@@ -784,3 +798,7 @@ input fails its check with only `checks.csv` written.
 
 The second-round config tests do the same for `configs/second_round.yaml`, including selection outside the tuning window, a
 second holdout candidate, and a lambda point that doesn't extend past a grid edge the recorded choice reached.
+
+The second-round tests check the band by hand: a name moves only to the band's edge, a name without a target is sold in full,
+and zero dollars and beta are restored. Band 0 reproduces the recorded construction, and the band can't see the future. They
+also run the whole round on a synthetic panel, including tuning on data poisoned after the tuning window.

@@ -1,4 +1,4 @@
-"""Second round: the ``configs/second_round.yaml`` loader.
+"""Second round: the ``configs/second_round.yaml`` loader, the variants and the selection rules.
 
 The design is fixed in the config before any variant is simulated. The loader is strict: an unknown
 or missing key, a wrong type, a method the design does not define, a grid without its recorded point,
@@ -8,14 +8,29 @@ ignored. Every evaluation-window result of this round is a second look.
 
 from __future__ import annotations
 
+import math
+from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 import yaml
 
+from src.costs import CostModel
 from src.models import load_models_config
-from src.portfolio import _check_schema, _get, _is_type, _positive_numbers, load_portfolio_config
+from src.portfolio import (
+    Target,
+    _check_schema,
+    _get,
+    _is_type,
+    _positive_numbers,
+    _window,
+    ledoit_wolf_risk,
+    load_portfolio_config,
+    volscaled_builder,
+)
 from src.sensitivity import load_sensitivity_config
 from src.signals import load_research_config
 from src.utils import REPO_ROOT, load_config
@@ -26,6 +41,7 @@ LIQUID_CONSTRUCTIONS = ("neutral_volscaled", "optimised")
 EVALUATION_STATISTICS = {"net_sharpe", "net_nw_t", "net_return_ann", "gross_sharpe", "annual_turnover",
                          "breakeven_cost_multiplier"}
 BOOTSTRAP_KEYS = ("method", "n_resamples", "seed", "confidence", "interval")
+MIN_TRADED = 3  # a dollar- and beta-neutral repair needs at least this many traded names
 
 NUM = (int, float)
 
@@ -199,3 +215,159 @@ def load_second_round_config(
     _check_evaluation_and_bootstrap(cfg, load_sensitivity_config(fcfg=fcfg, rcfg=rcfg, pcfg=pcfg))
     _check_checks_and_outputs(cfg)
     return cfg
+
+
+# --------------------------------------------------------------------------- variants
+
+
+@dataclass(frozen=True)
+class Variant:
+    """One grid point. ``recorded`` marks the first-round book at that point."""
+
+    family: str
+    signal: str
+    construction: str
+    order: int
+    recorded: bool = False
+    band: float | None = None
+    fraction: float | None = None
+    lambdas: tuple[float, float] | None = None
+
+    @property
+    def name(self) -> str:
+        if self.family == "no_trade_band":
+            point = f"{self.band:g}"
+        elif self.family == "liquid_universe":
+            point = f"{self.fraction:g}"
+        else:
+            point = f"{self.lambdas[0]:g}_{self.lambdas[1]:g}"
+        return f"{self.family}__{self.signal}__{self.construction}__{point}"
+
+    def row(self) -> dict[str, Any]:
+        risk, tc = self.lambdas if self.lambdas else (np.nan, np.nan)
+        return {"variant": self.name, "family": self.family, "signal": self.signal, "construction": self.construction,
+                "grid_order": self.order, "recorded": self.recorded, "band": self.band, "fraction": self.fraction,
+                "lambda_risk": risk, "lambda_tc": tc}
+
+
+def enumerate_variants(cfg: dict[str, Any], lambda_grid: pd.DataFrame) -> list[Variant]:
+    """Every grid point in config order. Recorded lambda points are read, never rerun."""
+    out: list[Variant] = []
+    band, liquid = cfg["no_trade_band"], cfg["liquid_universe"]
+    signals = [cfg["signals"]["primary"], cfg["signals"]["benchmark"]]
+    for signal in signals:
+        for order, value in enumerate(band["bands"]):
+            out.append(Variant("no_trade_band", signal, band["construction"], order, value == 0, band=float(value)))
+    for signal in signals:
+        for construction in liquid["constructions"]:
+            for order, value in enumerate(liquid["fractions"]):
+                out.append(Variant("liquid_universe", signal, construction, order, value == 1, fraction=float(value)))
+    for signal in signals:
+        rows = lambda_grid[lambda_grid["signal"] == signal].sort_values("grid_order")
+        points = [(float(r), float(c), True) for r, c in zip(rows["lambda_risk"], rows["lambda_tc"])]
+        points += [(float(r), float(c), False) for r, c in cfg["wider_lambda_grid"]["points"][signal]["added"]]
+        for order, (risk, tc, recorded) in enumerate(points):
+            out.append(Variant("wider_lambda_grid", signal, cfg["wider_lambda_grid"]["construction"], order, recorded,
+                               lambdas=(risk, tc)))
+    return out
+
+
+def liquid_scores(score: np.ndarray, adv: np.ndarray, fraction: float) -> np.ndarray:
+    """Scores of the top ``fraction`` of each date's scored names by ``adv``; the rest are unscored.
+
+    Each row uses only that date's values. A fraction of 1 returns the scores unchanged, so a name
+    without a liquidity value stays scored, as in the recorded book.
+    """
+    if fraction == 1:
+        return score
+    out = np.full(score.shape, np.nan)
+    for row in range(score.shape[0]):
+        ok = np.flatnonzero(np.isfinite(score[row]) & np.isfinite(adv[row]))
+        if len(ok):
+            top = ok[np.argsort(-adv[row, ok], kind="stable")[: math.ceil(fraction * len(ok))]]
+            out[row, top] = score[row, top]
+    return out
+
+
+def band_trade(current: np.ndarray, target: np.ndarray, band: float, beta: np.ndarray) -> np.ndarray | None:
+    """Weights after a no-trade band of ``band`` times the mean |target weight|, or None to hold.
+
+    A name moves only if its gap to target exceeds the band, and then only to the band's edge. A
+    name the target doesn't hold is sold in full. Zero dollars and beta are restored by the
+    least-change move of the names still traded towards a target. With fewer than ``MIN_TRADED`` of
+    them the tranche holds. A band of 0 is the target itself.
+    """
+    held = target != 0
+    if band == 0 or not held.any():
+        return target.copy()
+    gap = target - current
+    trade = np.sign(gap) * np.clip(np.abs(gap) - band * np.abs(target[held]).mean(), 0.0, None)
+    trade[~held] = -current[~held]
+    traded = (trade != 0) & held
+    if traded.sum() < MIN_TRADED:
+        return None
+    w = current + trade
+    b = np.nan_to_num(beta, nan=0.0)
+    excess = np.array([w.sum(), b @ w])
+    move, *_ = np.linalg.lstsq(np.column_stack([np.ones(traded.sum()), b[traded]]).T, -excess, rcond=None)
+    w[traded] += move
+    return w
+
+
+def scale_down(w: np.ndarray, ann_vol: float, target_vol_annual: float, max_gross: float) -> tuple[np.ndarray, bool]:
+    """``w`` scaled down if its ex-ante vol or gross exceeds its limit; it is never scaled up."""
+    gross = float(np.abs(w).sum())
+    scale = min(1.0, target_vol_annual / ann_vol if ann_vol > 0 else 1.0, max_gross / gross if gross > 0 else 1.0)
+    return (w * scale, True) if scale < 1 - 1e-12 else (w, False)
+
+
+def band_builder(pcfg: dict[str, Any], band: float, min_names: int, trading_days: int, counts: Counter) -> Any:
+    """``neutral_volscaled`` with a no-trade band. ``counts`` receives ``band_hold`` and ``band_scaled``."""
+    base = volscaled_builder(pcfg, min_names, trading_days)
+    spec, risk_cfg = pcfg["constructions"]["neutral_volscaled"], pcfg["risk_model"]
+
+    def build(data: Any, s: int, current: np.ndarray, capital_usd: float, costs: CostModel) -> Target:
+        target = base(data, s, current, capital_usd, costs).weights
+        if band == 0 or not (target != 0).any():
+            return Target(target)
+        w = band_trade(current, target, band, data.beta[s])
+        if w is None:
+            counts["band_hold"] += 1
+            return Target(current.copy(), "hold", "band_hold")
+        names = np.flatnonzero(np.isfinite(data.score[s]))
+        risk, _ = ledoit_wolf_risk(_window(data, s, names, risk_cfg["window"]), risk_cfg["min_obs_frac"])
+        ann_vol = math.sqrt(max(risk.variance(w[names]), 0.0) * trading_days)
+        w, scaled = scale_down(w, ann_vol, spec["target_vol_annual"], spec["max_gross"])
+        counts["band_scaled"] += int(scaled)
+        return Target(w)
+
+    return build
+
+
+# --------------------------------------------------------------------------- selection
+
+
+def select_variants(grid: pd.DataFrame) -> pd.DataFrame:
+    """One row per family, signal and construction: the highest tuning net Sharpe, ties to the first.
+
+    ``on_grid_edge`` flags a choice at an extreme of its grid. No grid is extended because of it.
+    """
+    grid = grid.sort_values(["family", "signal", "construction", "grid_order"], kind="stable")
+    chosen = []
+    for _, group in grid.groupby(["family", "signal", "construction"], sort=False):
+        row = group.loc[group["net_sharpe"].fillna(-np.inf).idxmax()].copy()
+        edge = False
+        for column in ("band", "fraction", "lambda_risk", "lambda_tc"):
+            values = group[column].dropna()
+            edge = edge or (len(values) > 0 and row[column] in (values.min(), values.max()))
+        row["on_grid_edge"] = bool(edge)
+        chosen.append(row)
+    return pd.DataFrame(chosen).reset_index(drop=True)
+
+
+def holdout_candidate(selected: pd.DataFrame, signal: str, headline_tuning_net_sharpe: float) -> pd.DataFrame:
+    """At most one new book: the chosen variant of ``signal`` with the highest tuning net Sharpe, if it
+    beats the headline's. A chosen recorded point is the first-round book, so it is not a candidate."""
+    rows = selected[(selected["signal"] == signal) & ~selected["recorded"].astype(bool)]
+    rows = rows[rows["net_sharpe"] > headline_tuning_net_sharpe]
+    return rows.loc[[rows["net_sharpe"].idxmax()]].reset_index(drop=True) if len(rows) else rows.reset_index(drop=True)
