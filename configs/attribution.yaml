@@ -1,0 +1,148 @@
+# Risk and attribution design, fixed before any factor file is downloaded or regression is run.
+# Question: what is the gross return of the portfolio books made of, and in particular is the 0.80
+# gross Sharpe of lightgbm_h5_rank under neutral_volscaled just the published short-term reversal
+# factor? Everything here describes the recorded base-case books: no backtest is rerun, no book is
+# chosen, and no parameter of configs/portfolio.yaml changes. This design was written after the
+# results in reports/portfolio/ were seen, so it decides nothing about which book is traded.
+# See "Risk and attribution: design" in README.md.
+
+portfolio_config: configs/portfolio.yaml
+research_config: configs/research.yaml
+features_config: configs/features.yaml
+
+book_data:                         # per-signal output of src.run_portfolio (gitignored)
+  daily_returns: data/processed/portfolio/{signal}/portfolio_daily_returns.parquet
+  weights: data/processed/portfolio/{signal}/portfolio_weights.parquet
+  portfolio_metadata: reports/portfolio/run_metadata.json   # its config hash must match the portfolio config
+  exposures_table: reports/portfolio/exposures.csv          # reproduced by the reconciliation check
+  scenario: base                   # $100m, cost multiplier 1
+  tranche: total
+
+books:
+  lightgbm_h5_optimised:         {signal: lightgbm_h5_rank, construction: optimised,         role: headline}
+  lightgbm_h5_neutral_volscaled: {signal: lightgbm_h5_rank, construction: neutral_volscaled, role: primary_attribution}
+  B0_h5_optimised:               {signal: B0_reversal_h5,   construction: optimised,         role: benchmark}
+  B0_h5_neutral_volscaled:       {signal: B0_reversal_h5,   construction: neutral_volscaled, role: benchmark}
+
+series:
+  primary: gross_pnl               # published factors are gross of their own trading costs, so only
+                                   # gross returns compare like for like with them
+  secondary: net_pnl               # reported, and labelled as not like for like
+
+windows:
+  evaluation: primary              # 2014-01-02 to the last engine date, 2021-12-08
+  tuning: secondary                # 2007-2013, reported with the in-sample label of reports/portfolio/
+
+factors:
+  raw_dir: data/raw/factors        # gitignored; each file's sha256 and download date go into run_metadata.json
+  cut_before: holdout_start        # rows on or after it are dropped while parsing, before any value is
+                                   # returned; a parsed date at or after it is an error
+  coverage: every_book_date        # a book date without a factor value is an error, never dropped or filled
+  sources:
+    french_5_factors:
+      url: https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_5_Factors_2x3_daily_CSV.zip
+      format: french_csv_zip
+      scale: 0.01                  # published in percent
+      columns: {Mkt-RF: mkt_rf, SMB: smb, HML: hml, RMW: rmw, CMA: cma}
+    french_momentum:
+      url: https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Momentum_Factor_daily_CSV.zip
+      format: french_csv_zip
+      scale: 0.01
+      columns: {Mom: mom}
+    french_short_term_reversal:
+      url: https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_ST_Reversal_Factor_daily_CSV.zip
+      format: french_csv_zip
+      scale: 0.01
+      columns: {ST_Rev: st_rev}
+    aqr_betting_against_beta:
+      url: https://www.aqr.com/-/media/AQR/Documents/Insights/Data-Sets/Betting-Against-Beta-Equity-Factors-Daily.xlsx
+      format: aqr_xlsx             # needs openpyxl, added to requirements.txt together with the runner
+      scale: 1.0                   # published as a fraction
+      sheet: BAB Factors
+      columns: {USA: bab}
+
+# Nested models, each adding to the one before. Every model is an OLS of daily book returns on a
+# constant and the factors, on the same dates. Books are self-financing and earn no cash
+# (costs.cash_rate = 0), so no risk-free rate is subtracted.
+models:
+  market:             {adds: [mkt_rf]}
+  ff5:                {adds: [smb, hml, rmw, cma]}
+  ff5_mom:            {adds: [mom]}
+  ff5_mom_strev:      {adds: [st_rev]}
+  ff5_mom_strev_bab:  {adds: [bab]}
+
+regression:
+  estimator: ols
+  standard_errors: newey_west      # influence-function form of src.portfolio_report.regression_beta
+  lag_rule: from_research_config   # max(h, plug-in) with h = 5, as in reports/portfolio/
+  trading_days: from_research_config
+  decomposition: mean_equals_alpha_plus_contributions
+    # mean return = alpha + sum of beta_k * mean(f_k), exact in-sample; reported in bp a year per factor
+
+own_reversal_spanning:             # the published factor is a one-month, all-cap, value-weighted sort, so
+  book: lightgbm_h5_neutral_volscaled   # it can miss a five-day reversal inside the S&P 500. This asks
+  regressor_book: B0_h5_neutral_volscaled   # the same question against the project's own reversal book
+  model: ff5_mom_strev_bab         # that model plus the regressor book's gross return
+  series: gross_pnl
+  window: evaluation
+
+# The one confirmatory test. Everything else in this design is descriptive and gets no multiple-testing
+# correction. alpha_t and reversal_t are the NW t-statistics of the constant and of st_rev. reversal
+# counts as present when its beta is positive and reversal_t >= t_threshold. The four outcomes cover
+# every case and are worded as in README.md:
+#   reversal present, alpha_t <  t_threshold -> reversal_explained
+#   reversal present, alpha_t >= t_threshold -> reversal_partial
+#   reversal absent,  alpha_t >= t_threshold -> not_reversal
+#   reversal absent,  alpha_t <  t_threshold -> inconclusive
+primary_test:
+  book: lightgbm_h5_neutral_volscaled
+  series: gross_pnl
+  window: evaluation
+  model: ff5_mom_strev_bab
+  factor: st_rev
+  t_threshold: 2.0
+
+risk:
+  cumulative: additive             # fixed capital, as in src.backtest.performance
+  drawdown_episodes: 3             # deepest episodes: depth, peak, trough, recovery date or unrecovered
+  var_es:
+    method: historical
+    confidence: [0.95, 0.99]
+    horizons_days: [1, 5]          # the 5-day figure uses overlapping rolling sums; descriptive only
+    units: [per_dollar_of_capital, multiple_of_daily_vol]   # book vols differ, so both are shown
+  moments:
+    skew_excess_kurtosis_on: [daily, non_overlapping_h_day]
+  worst_periods: [day, month]
+
+# Why realised beta differs from ex-ante. Ex-ante is the daily frame's beta_ex_ante: holdings after
+# drift times beta_252d, so drift between rebalances is already inside it. Every proposed explanation
+# is reported, and none is declared the winner in advance.
+beta_analysis:
+  series: [gross_pnl, net_pnl]     # net on the equal-weighted market must reproduce exposures.csv
+  market_proxies:
+    equal_weighted: market_return  # the universe return in the daily frame; beta_252d is measured on it
+    value_weighted: mkt_rf         # stands in for SPY, which is not in the data bundle
+  explanations:
+    benchmark: compare_proxies     # same book and window, the two proxies side by side
+    estimation_error: newey_west_interval   # does the realised beta's 95% interval contain mean beta_ex_ante?
+    stale_beta:
+      short_beta_window: 63        # as src.features.rolling_beta on the equal-weighted market, known at the score date
+      min_obs_frac: 0.8            # as features.min_obs_frac
+      exposure: rebalance_weights_times_short_beta   # capital-weighted over tranches, held to the next rebalance
+    conditional_beta: market_times_lagged_exposure
+      # r_t = a + b0 m_t + b1 X_(t-1) m_t for X = beta_ex_ante and X = the short-beta exposure;
+      # an unbiased exposure measure gives b0 = 0 and b1 = 1
+    up_down_asymmetry: split_on_sign_of_market   # separate betas on up and down market days
+    factor_controls: market_beta_in_each_nested_model
+
+checks:                            # any failure stops the run before results are written
+  reproduce_exposures_tolerance: 1.0e-9    # net regression on market_return vs exposures.csv
+  date_alignment: max_correlation_at_lag_zero
+    # correlation of mkt_rf with market_return at leads and lags of -1, 0, +1 days must peak at 0
+  decomposition_tolerance: 1.0e-12
+  coverage: every_book_date
+
+outputs:
+  reports_dir: reports/attribution # tidy CSVs, run_metadata.json and SUMMARY.md
+  figures_dir: reports/attribution/figures
+  notebook: notebooks/05_attribution.ipynb

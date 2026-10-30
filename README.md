@@ -489,6 +489,94 @@ Full write-up, with cost breakdown, AUM scenarios, exposures, limitations and a 
 [`reports/portfolio/SUMMARY.md`](reports/portfolio/SUMMARY.md). Notebook:
 [`notebooks/04_portfolio.ipynb`](notebooks/04_portfolio.ipynb).
 
+## Risk and attribution: design
+
+What is the gross return of the portfolio books made of? In particular, is the 0.80 gross Sharpe of `lightgbm_h5_rank`
+under `neutral_volscaled` just the published short-term reversal factor? The design is fixed in
+[`configs/attribution.yaml`](configs/attribution.yaml) and is committed before any factor file is downloaded or any
+regression is run. `src.attribution.load_attribution_config` rejects unknown or missing keys, wrong types, methods the
+design does not define, books the portfolio config does not define, and a confirmatory test that differs from the one
+below. The runner will use the same guard as the other runners (`src.utils.provenance`).
+
+This design was written after the results in `reports/portfolio/` were seen. It describes the recorded base-case
+books. No backtest is rerun, no book is chosen, and nothing in `configs/portfolio.yaml` changes.
+
+### Books, series and windows
+
+- **Books:** `optimised` and `neutral_volscaled`, each on `lightgbm_h5_rank` and `B0_reversal_h5`, at $100m and base
+  costs. The first is the headline book and the third its benchmark.
+- **Series:** gross P&L is primary. Net P&L is reported but labelled as not like for like, because the published factors
+  are gross of their own trading costs.
+- **Windows:** the evaluation window (2014-01-02 to 2021-12-08) is primary. The tuning window (2007-2013) is secondary
+  and keeps its in-sample label.
+
+### Factors
+
+- **Models:** nested OLS regressions of daily book returns on a constant and the factors: market, then Fama-French 5,
+  then momentum, then short-term reversal, then betting-against-beta. Books are self-financing and earn no cash, so no
+  risk-free rate is subtracted.
+- **Inference:** Newey-West with the research lag rule, `max(h, plug-in)`.
+- **Decomposition:** mean return = alpha + the sum of beta × mean factor return, reported in bp a year per factor.
+- **Sources:** daily files from the Ken French data library, and the AQR daily BAB file (US column). The URLs are in the
+  config, and each file's sha256 and download date go into `run_metadata.json`. The files stay in `data/raw/factors/`,
+  which is gitignored.
+- **Holdout rule:** the published files run past 2022. The parser drops every row on or after `holdout_start` before
+  it returns any value, and a later date is an error. A book date with no factor value is also an error, never dropped
+  or filled.
+- **Own reversal book:** the published factor is a one-month, all-cap, value-weighted sort, so it can miss a five-day
+  reversal inside the S&P 500. One further regression adds the gross return of B0 `neutral_volscaled` to the largest
+  model for the LightGBM `neutral_volscaled` book.
+
+### The one confirmatory test
+
+Book LightGBM `neutral_volscaled`, gross, evaluation window, largest model. Reversal counts as present when the
+`st_rev` beta is positive with NW t ≥ 2.
+
+| Reversal | Alpha NW t | Outcome | Reading |
+|---|---|---|---|
+| present | < 2 | `reversal_explained` | The gross return is the published reversal premium. |
+| present | ≥ 2 | `reversal_partial` | The reversal factor explains part of it, and alpha remains. |
+| absent | ≥ 2 | `not_reversal` | The alpha is not explained by these factors. |
+| absent | < 2 | `inconclusive` | Neither is distinguishable from zero in this window. |
+
+Everything else in this design is descriptive and gets no multiple-testing correction. The window is about 8 years,
+so the test has limited power, and `inconclusive` is a real possibility.
+
+### Risk statistics
+
+For every book, gross and net, per window: the three deepest drawdowns on additive P&L (fixed capital, as in the
+backtest), historical VaR and ES at 95% and 99% over 1 and 5 days, skew and excess kurtosis on daily and on
+non-overlapping h-day returns, and the worst day and month. VaR and ES are shown per $ of capital and as multiples of
+daily vol, because book vols differ. All of these are point estimates.
+
+### Why realised beta differs from ex-ante
+
+`beta_ex_ante` is the holdings after drift times `beta_252d`, so drift between rebalances is already inside it. The
+design reports each explanation and doesn't pick a winner in advance:
+
+- **Benchmark:** `beta_252d` is measured on the equal-weighted universe. Each book is regressed on that return and on
+  Mkt-RF, which stands in for SPY because SPY is not in the data bundle.
+- **Estimation error:** does the realised beta's 95% Newey-West interval contain the mean ex-ante beta?
+- **Stale beta:** exposure recomputed from rebalance weights with a 63-day beta known at the score date.
+- **Conditional beta:** `r_t = a + b0 m_t + b1 X_(t-1) m_t`, for the ex-ante exposure and the 63-day exposure. An unbiased
+  exposure measure gives `b0 = 0` and `b1 = 1`.
+- **Asymmetry:** separate betas on up and down market days.
+- **Factor controls:** the market beta in each nested model.
+
+### Checks and outputs
+
+The run stops before writing results if any of these fails:
+- the net regression on the universe return must reproduce `reports/portfolio/exposures.csv`;
+- the correlation of Mkt-RF with the universe return must peak at lag 0 across lags -1, 0 and +1, which catches a date
+  shift in a factor file;
+- the mean decomposition must hold exactly;
+- every book date must have a value for every factor.
+
+The results will go to `reports/attribution/`, with a summary there and `notebooks/05_attribution.ipynb`. If a factor
+file's layout differs from the config, for example the AQR sheet or column name, the correction is committed before any
+regression runs and recorded in the summary. A source that can't be obtained stops the run: the largest model isn't
+replaced with another one.
+
 ## Data attribution
 
 Data from Sharadar: Core US Equities Bundle (SEP prices, S&P 500 constituents,corporate actions). 
@@ -520,3 +608,6 @@ the optimiser constraints and each fallback path. The backtest tests run on smal
 - that zero-cost `decile_ls` reproduces the research D10 - D1 spread;
 - the holdout guard;
 - that `--tune` gives identical results when everything after the tuning window is poisoned.
+
+The attribution-config tests load the real `configs/attribution.yaml` and check that the loader rejects each way of
+leaving the pre-registered design, including a change to the confirmatory test or to the holdout cut on factor files.
