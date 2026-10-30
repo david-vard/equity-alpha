@@ -836,6 +836,17 @@ Before any holdout return is computed:
 
 The results will go to `reports/holdout/`, with a summary there and `notebooks/08_holdout.ipynb`.
 
+### Running the holdout
+
+```bash
+python -m src.run_holdout --open-holdout   # once only -> reports/holdout/
+```
+
+The command refuses without its flag, with uncommitted changes in `src/` or `configs/`, with a changed panel or pinned input, and if
+`reports/holdout/opened.json` already exists. `src.holdout.load_holdout_panel` is the only reader of holdout rows, and it refuses until
+that lock is written. The books run continuously, so holdout days are simulated together with earlier ones. The checks compare only
+pre-holdout data, and no holdout statistic is computed or written until they pass. The research loaders keep their guard.
+
 ## Data attribution
 
 Data from Sharadar: Core US Equities Bundle (SEP prices, S&P 500 constituents,corporate actions). 
@@ -888,3 +899,6 @@ also run the whole round on a synthetic panel, including tuning on data poisoned
 
 The holdout-config tests do the same for `configs/holdout.yaml`, including a changed hash, a swapped book, a softer outcome and a
 dirty tree, and they check that loading the design reads no parquet file.
+
+The holdout tests run only on synthetic data. They cover the lock, the refusals, each outcome label, a failed check writing no
+holdout statistic, and a later label being unable to change a score. They also run the whole sequence on a synthetic panel.

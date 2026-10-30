@@ -1,16 +1,20 @@
-"""Holdout: the ``configs/holdout.yaml`` loader.
+"""Holdout: the ``configs/holdout.yaml`` loader, the one-shot lock and the outcome rules.
 
 The design is fixed in the config before any row on or after ``holdout_start`` is read. The loader
 is strict: an unknown or missing key, a wrong type, a method the design does not define, a book that
 differs from the frozen ones, or an input whose hash has changed is an error, never silently
-ignored. Nothing here reads a return, a panel row or a prediction.
+ignored. ``load_holdout_panel`` is the only reader of holdout rows, and it refuses unless the
+one-shot lock has already been written.
 """
 
 from __future__ import annotations
 
+import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 import yaml
 
@@ -202,3 +206,46 @@ def load_holdout_config(path: str | Path | None = None) -> dict[str, Any]:
     _check_outcomes_and_bootstrap(cfg, load_sensitivity_config(pcfg=pcfg, fcfg=fcfg, rcfg=rcfg))
     _check_one_shot_and_outputs(cfg)
     return cfg
+
+
+# --------------------------------------------------------------------------- one shot
+
+
+def open_lock(lock_file: Path, identity: dict[str, Any]) -> None:
+    """Record the opening before the first holdout row is read; a second opening refuses."""
+    if lock_file.exists():
+        raise SystemExit(f"the holdout has already been opened: {lock_file}")
+    lock_file.parent.mkdir(parents=True, exist_ok=True)
+    stamp = {"opened_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), **identity}
+    lock_file.write_text(json.dumps(stamp, indent=2, default=str) + "\n")
+
+
+def load_holdout_panel(columns: list[str], panel_file: str | Path, lock_file: Path) -> pd.DataFrame:
+    """Every panel row through the last date, as float32; the only reader of holdout rows."""
+    if not Path(lock_file).exists():
+        raise SystemExit("the holdout panel can only be read after the one-shot lock is written")
+    panel = pd.read_parquet(panel_file, columns=columns)
+    float_cols = [c for c in panel.columns if panel[c].dtype != np.float32 and panel[c].dtype.kind == "f"]
+    return panel.astype({c: "float32" for c in float_cols}) if float_cols else panel
+
+
+# --------------------------------------------------------------------------- dates and outcomes
+
+
+def last_score_date(calendar: pd.DatetimeIndex, lag: int, horizon: int) -> pd.Timestamp:
+    """The last date whose position can still be closed at its label end inside the panel."""
+    return pd.DatetimeIndex(sorted(set(calendar)))[-1 - lag - horizon]
+
+
+def t_outcome(t: float, threshold: float, labels: dict[str, str]) -> str:
+    """The declared label of a net t-statistic; a missing t is inconclusive."""
+    if t >= threshold:
+        return labels["at_or_above"]
+    return labels["at_or_below_minus"] if t <= -threshold else labels["between"]
+
+
+def interval_outcome(low: float, high: float, labels: dict[str, str]) -> str:
+    """The declared label of a paired difference, from its bootstrap interval."""
+    if low > 0:
+        return labels["above_zero"]
+    return labels["below_zero"] if high < 0 else labels["contains_zero"]
