@@ -1,0 +1,18 @@
+{
+  "config_commit": "18da10eaac9d2b96d1f3b02b8e4224d7371c2033",
+  "config_dirty": false,
+  "config_sha256": "2fa93fd443fd5034fa8022ad3a24661d94eed13778bb6dd89211bc8464f08e36",
+  "code_commit": "62b3c1a259ef0280df5fbe9810d09cb0d9a8804b",
+  "code_dirty": false,
+  "features_config_sha256": "42109759ae31f519774ae5ebdcdf59468732ed5eb2511704420bf1ed47fc136d",
+  "panel_sha256": "747c69f3ea849f522e4f3e277de4771ea9d79c794be27425f89eb25f8cd6ee4c",
+  "panel_bytes": 649981296,
+  "holdout_start": "2022-01-01",
+  "portfolio_config_sha256": "6e2e5c1a33960b5a6fe7af7010651d7f33ae2f9024ada4effa1f86990f1dff2d",
+  "book_files_sha256": {
+    "data/processed/portfolio/B0_reversal_h5/portfolio_daily_returns.parquet": "8ddf88c3a646eb7937c798588c49cbb5eb93828c9e8ca617b694109e37f55939",
+    "data/processed/portfolio/B1_composite_h5/portfolio_daily_returns.parquet": "6d2c0f17e038698d4900dc7269e57ae153abe9cba1f85906b2082f0bd0140453",
+    "data/processed/portfolio/lightgbm_h21_rank/portfolio_daily_returns.parquet": "ba28c027cb2f5323084d63c8f2c86177cb372089959c32ee6f19067fff1865c5",
+    "data/processed/portfolio/lightgbm_h5_rank/portfolio_daily_returns.parquet": "6c11d68b46e7b56a06dc495891e6de1e31cc681abdd2683b3b4b2de4c6e4ff28"
+  }
+}

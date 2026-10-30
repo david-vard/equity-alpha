@@ -667,6 +667,20 @@ python -m src.run_sensitivity   # -> reports/sensitivity/
 The checks run first, and if one fails only `checks.csv` is written. The run reads the recorded books from
 `data/processed/portfolio/`, reruns no backtest and doesn't re-solve the optimiser.
 
+### Results (evaluation window, base costs, mean block 21 days)
+
+**The null headline holds, but it's a weak null.** The headline net Sharpe is -0.00 with a 95% interval of -0.60 to +0.62, and
+LightGBM minus B0 under `optimised` is +0.02 (-0.96 to +1.07). The data rule out a large net edge but can't separate zero from
+a net Sharpe of about 0.5.
+
+Of the 24 gross and net intervals, three exclude zero: gross LightGBM `neutral_volscaled` (0.20 to 1.42), and net B0 `decile_ls`
+and `neutral_volscaled`, which are negative. With trades held fixed, no book reaches a net t of 2 anywhere on the Y and borrow
+grid. The headline depends on borrow (break-even 24.6 bp, against 25 bp assumed), and LightGBM `neutral_volscaled` depends on
+impact (break-even Y 0.61). Reversal depends most on the rebalance offset: B0 `optimised` runs from -0.27 to +0.21 net.
+
+Full write-up: [`reports/sensitivity/SUMMARY.md`](reports/sensitivity/SUMMARY.md). Notebook:
+[`notebooks/06_sensitivity.ipynb`](notebooks/06_sensitivity.ipynb).
+
 ## Data attribution
 
 Data from Sharadar: Core US Equities Bundle (SEP prices, S&P 500 constituents,corporate actions). 

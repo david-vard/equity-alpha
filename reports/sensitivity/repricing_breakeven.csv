@@ -1,0 +1,25 @@
+signal,construction,window,breakeven_impact_y,breakeven_borrow_bps_per_year
+lightgbm_h5_rank,decile_ls,evaluation,0.04732442722584348,-1059.2403978130176
+lightgbm_h5_rank,decile_ls,tuning (in-sample for the lambdas),0.2005303770664514,-1526.8808571519064
+lightgbm_h5_rank,neutral_volscaled,evaluation,0.6065509748460152,-169.9014206998009
+lightgbm_h5_rank,neutral_volscaled,tuning (in-sample for the lambdas),0.17723591965934113,-610.392502479147
+lightgbm_h5_rank,optimised,evaluation,0.9377391629541616,24.58856216905805
+lightgbm_h5_rank,optimised,tuning (in-sample for the lambdas),10.477397437450154,161.0196253852723
+B0_reversal_h5,decile_ls,evaluation,-0.025960808176159072,-1895.4133378207207
+B0_reversal_h5,decile_ls,tuning (in-sample for the lambdas),0.41110033932576145,-2013.122966355248
+B0_reversal_h5,neutral_volscaled,evaluation,-0.023531853450414135,-798.3791845382067
+B0_reversal_h5,neutral_volscaled,tuning (in-sample for the lambdas),-0.010029431717578563,-1214.2704025633293
+B0_reversal_h5,optimised,evaluation,0.8578049716291691,6.36006551844822
+B0_reversal_h5,optimised,tuning (in-sample for the lambdas),2.034632492664807,462.7880259578698
+B1_composite_h5,decile_ls,evaluation,-0.49136039019997446,-1007.535865943459
+B1_composite_h5,decile_ls,tuning (in-sample for the lambdas),-0.43829292500070655,-1718.324164653777
+B1_composite_h5,neutral_volscaled,evaluation,2.3004732936463546,297.9514843217561
+B1_composite_h5,neutral_volscaled,tuning (in-sample for the lambdas),-0.25016986874129926,-369.6731129328325
+B1_composite_h5,optimised,evaluation,-1.9931437084459382,-40.46137070138352
+B1_composite_h5,optimised,tuning (in-sample for the lambdas),-1.8701890198279412,-168.096055563609
+lightgbm_h21_rank,decile_ls,evaluation,-0.36199655166089334,-330.51551804074177
+lightgbm_h21_rank,decile_ls,tuning (in-sample for the lambdas),-3.76518973090305,-985.881497192592
+lightgbm_h21_rank,neutral_volscaled,evaluation,-0.44691059786008586,-47.249751891126344
+lightgbm_h21_rank,neutral_volscaled,tuning (in-sample for the lambdas),3.6884183271311812,220.46662617380895
+lightgbm_h21_rank,optimised,evaluation,-1.1671941985852559,-7.4681557190102845
+lightgbm_h21_rank,optimised,tuning (in-sample for the lambdas),11.657597276447389,308.88539878996835

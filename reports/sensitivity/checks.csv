@@ -1,0 +1,67 @@
+check,book,window,value,limit,passed
+last_date_before_holdout,lightgbm_h5_rank/decile_ls,all,0.0,0.0,True
+tranches_sum,lightgbm_h5_rank/decile_ls,all,2.7755575615628914e-17,1e-09,True
+reprice_base,lightgbm_h5_rank/decile_ls,all,2.7755575615628914e-17,1e-12,True
+reproduce_sharpes,lightgbm_h5_rank/decile_ls,evaluation,2.7755575615628914e-17,1e-09,True
+reproduce_sharpes,lightgbm_h5_rank/decile_ls,tuning,5.551115123125783e-17,1e-09,True
+last_date_before_holdout,lightgbm_h5_rank/neutral_volscaled,all,0.0,0.0,True
+tranches_sum,lightgbm_h5_rank/neutral_volscaled,all,6.938893903907228e-18,1e-09,True
+reprice_base,lightgbm_h5_rank/neutral_volscaled,all,6.938893903907228e-18,1e-12,True
+reproduce_sharpes,lightgbm_h5_rank/neutral_volscaled,evaluation,5.551115123125783e-17,1e-09,True
+reproduce_sharpes,lightgbm_h5_rank/neutral_volscaled,tuning,1.1102230246251565e-16,1e-09,True
+last_date_before_holdout,lightgbm_h5_rank/optimised,all,0.0,0.0,True
+tranches_sum,lightgbm_h5_rank/optimised,all,3.469446951953614e-18,1e-09,True
+reprice_base,lightgbm_h5_rank/optimised,all,3.469446951953614e-18,1e-12,True
+reproduce_sharpes,lightgbm_h5_rank/optimised,evaluation,1.7997756063259374e-17,1e-09,True
+reproduce_sharpes,lightgbm_h5_rank/optimised,tuning,5.551115123125783e-17,1e-09,True
+last_date_before_holdout,B0_reversal_h5/decile_ls,all,0.0,0.0,True
+tranches_sum,B0_reversal_h5/decile_ls,all,2.7755575615628914e-17,1e-09,True
+reprice_base,B0_reversal_h5/decile_ls,all,2.7755575615628914e-17,1e-12,True
+reproduce_sharpes,B0_reversal_h5/decile_ls,evaluation,0.0,1e-09,True
+reproduce_sharpes,B0_reversal_h5/decile_ls,tuning,1.1102230246251565e-16,1e-09,True
+last_date_before_holdout,B0_reversal_h5/neutral_volscaled,all,0.0,0.0,True
+tranches_sum,B0_reversal_h5/neutral_volscaled,all,6.938893903907228e-18,1e-09,True
+reprice_base,B0_reversal_h5/neutral_volscaled,all,1.3877787807814457e-17,1e-12,True
+reproduce_sharpes,B0_reversal_h5/neutral_volscaled,evaluation,0.0,1e-09,True
+reproduce_sharpes,B0_reversal_h5/neutral_volscaled,tuning,0.0,1e-09,True
+last_date_before_holdout,B0_reversal_h5/optimised,all,0.0,0.0,True
+tranches_sum,B0_reversal_h5/optimised,all,6.938893903907228e-18,1e-09,True
+reprice_base,B0_reversal_h5/optimised,all,1.3877787807814457e-17,1e-12,True
+reproduce_sharpes,B0_reversal_h5/optimised,evaluation,5.551115123125783e-17,1e-09,True
+reproduce_sharpes,B0_reversal_h5/optimised,tuning,0.0,1e-09,True
+last_date_before_holdout,B1_composite_h5/decile_ls,all,0.0,0.0,True
+tranches_sum,B1_composite_h5/decile_ls,all,2.7755575615628914e-17,1e-09,True
+reprice_base,B1_composite_h5/decile_ls,all,4.163336342344337e-17,1e-12,True
+reproduce_sharpes,B1_composite_h5/decile_ls,evaluation,1.3877787807814457e-17,1e-09,True
+reproduce_sharpes,B1_composite_h5/decile_ls,tuning,6.938893903907228e-17,1e-09,True
+last_date_before_holdout,B1_composite_h5/neutral_volscaled,all,0.0,0.0,True
+tranches_sum,B1_composite_h5/neutral_volscaled,all,1.3877787807814457e-17,1e-09,True
+reprice_base,B1_composite_h5/neutral_volscaled,all,1.3877787807814457e-17,1e-12,True
+reproduce_sharpes,B1_composite_h5/neutral_volscaled,evaluation,0.0,1e-09,True
+reproduce_sharpes,B1_composite_h5/neutral_volscaled,tuning,5.551115123125783e-17,1e-09,True
+last_date_before_holdout,B1_composite_h5/optimised,all,0.0,0.0,True
+tranches_sum,B1_composite_h5/optimised,all,1.3877787807814457e-17,1e-09,True
+reprice_base,B1_composite_h5/optimised,all,1.3877787807814457e-17,1e-12,True
+reproduce_sharpes,B1_composite_h5/optimised,evaluation,7.979727989493313e-17,1e-09,True
+reproduce_sharpes,B1_composite_h5/optimised,tuning,7.632783294297951e-17,1e-09,True
+last_date_before_holdout,lightgbm_h21_rank/decile_ls,all,0.0,0.0,True
+tranches_sum,lightgbm_h21_rank/decile_ls,all,2.7755575615628914e-17,1e-09,True
+reprice_base,lightgbm_h21_rank/decile_ls,all,2.7755575615628914e-17,1e-12,True
+reproduce_sharpes,lightgbm_h21_rank/decile_ls,evaluation,4.683753385137379e-17,1e-09,True
+reproduce_sharpes,lightgbm_h21_rank/decile_ls,tuning,5.551115123125783e-17,1e-09,True
+last_date_before_holdout,lightgbm_h21_rank/neutral_volscaled,all,0.0,0.0,True
+tranches_sum,lightgbm_h21_rank/neutral_volscaled,all,3.469446951953614e-18,1e-09,True
+reprice_base,lightgbm_h21_rank/neutral_volscaled,all,6.938893903907228e-18,1e-12,True
+reproduce_sharpes,lightgbm_h21_rank/neutral_volscaled,evaluation,5.551115123125783e-17,1e-09,True
+reproduce_sharpes,lightgbm_h21_rank/neutral_volscaled,tuning,5.551115123125783e-17,1e-09,True
+last_date_before_holdout,lightgbm_h21_rank/optimised,all,0.0,0.0,True
+tranches_sum,lightgbm_h21_rank/optimised,all,6.938893903907228e-18,1e-09,True
+reprice_base,lightgbm_h21_rank/optimised,all,6.938893903907228e-18,1e-12,True
+reproduce_sharpes,lightgbm_h21_rank/optimised,evaluation,8.326672684688674e-17,1e-09,True
+reproduce_sharpes,lightgbm_h21_rank/optimised,tuning,0.0,1e-09,True
+paired_dates,"lightgbm_h5_rank - B0_reversal_h5, decile_ls",evaluation,0.0,0.0,True
+paired_dates,"lightgbm_h5_rank - B0_reversal_h5, decile_ls",tuning,0.0,0.0,True
+paired_dates,"lightgbm_h5_rank - B0_reversal_h5, neutral_volscaled",evaluation,0.0,0.0,True
+paired_dates,"lightgbm_h5_rank - B0_reversal_h5, neutral_volscaled",tuning,0.0,0.0,True
+paired_dates,"lightgbm_h5_rank - B0_reversal_h5, optimised",evaluation,0.0,0.0,True
+paired_dates,"lightgbm_h5_rank - B0_reversal_h5, optimised",tuning,0.0,0.0,True
