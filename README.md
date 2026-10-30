@@ -767,6 +767,75 @@ headline's 0.35. The liquid universe didn't hold up out of sample, and the wider
 Full write-up: [`reports/second_round/SUMMARY.md`](reports/second_round/SUMMARY.md). Notebook:
 [`notebooks/07_second_round.ipynb`](notebooks/07_second_round.ipynb).
 
+## Holdout: design
+
+Do the frozen books hold up on data nothing in this project has touched? The design is fixed in
+[`configs/holdout.yaml`](configs/holdout.yaml) and is committed before any row on or after `holdout_start` is read. It runs once,
+and a null or negative result is reported as such. `src.holdout.load_holdout_config` rejects unknown or missing keys, wrong types,
+methods the design does not define, any change to the three books, and any input whose hash has changed. The configs, the recorded
+λs, the model hyperparameters and the second-round candidate are all pinned by hash.
+
+### Books
+
+Exactly three, all `optimised` at $100m and base costs. Nothing can be added once this is committed.
+
+| Book | Signal | λs | Universe | Role |
+|---|---|---|---|---|
+| Headline | `lightgbm_h5_rank` | (100, 4) | all | primary |
+| Benchmark | `B0_reversal_h5` | (3, 1) | all | comparator |
+| Candidate | `lightgbm_h5_rank` | (100, 4) | top 25% by liquidity | second-round candidate |
+
+The band 4 book from the second round isn't here: its tuning net Sharpe was below the headline's, so including it would mean choosing
+on the evaluation window.
+
+### Model refit
+
+The first-round rule simply continues. LightGBM (h = 5, rank target) is refit every January from 2022 to 2026 on an expanding window,
+with the same grid, inner validation, purge, seed and early stopping as `configs/models.yaml`. Fold Y trains only on labels that end
+before the first date of Y, so a later fold can use earlier holdout labels, exactly as a live book would. No hyperparameter or
+feature is chosen by hand. Each fold's Grinold IC comes from its own validation block, as before. B0 needs no fit.
+
+### Continuity
+
+The research sample ends on 2021-11-30, and the holdout starts on 2022-01-03. Starting flat in 2022 would leave the books far from
+their recorded state, because λ_tc = 4 builds a book slowly. So each book runs continuously from 2007, and only the holdout window
+is reported. The embargoed dates in December 2021 are scored by the unchanged 2021 model, with no new fit. The holdout is 1,207
+trading days, about 4.8 years, to 2026-10-23, and open tranches run to their label end.
+
+### Outcomes, declared before any holdout return exists
+
+| Test | Rule | Outcomes |
+|---|---|---|
+| Headline net Sharpe (primary) | NW t, threshold ±2 | `holds_up`, `inconclusive`, `fails` |
+| LightGBM minus B0, net (primary) | paired bootstrap interval | `lightgbm_better`, `no_difference_shown`, `b0_better` |
+| Candidate net Sharpe (secondary) | NW t, threshold ±2 | `holds_up`, `inconclusive`, `fails` |
+
+The candidate can't replace the headline, whatever its result.
+
+**The test has limited power, and `inconclusive` is the likeliest outcome.** With about 4.8 years the standard error of a Sharpe is about
+0.46, so t = 2 needs a net Sharpe of about 0.9, well above anything the headline has shown. An inconclusive result wouldn't mean
+there is no edge. It would mean this sample can't tell.
+
+Each book also reports net and gross Sharpe, return, vol, turnover, cost, borrow, drawdown, gross exposure, realised beta, each year,
+and break-evens for Y and borrow. The LightGBM score's daily IC is reported as a secondary number.
+
+### One shot
+
+- **Only one command reads a holdout row:** the runner with `--open-holdout`.
+- **It needs a clean tree.** There is no `--allow-dirty-config`: config and code must be committed.
+- **A lock comes first.** `reports/holdout/opened.json` is written before the first holdout row is read, and a second run refuses.
+- **A failure doesn't reopen it.** A check that fails after the lock is reported as it stands. The holdout runs again only under a
+  new committed amendment that says why, and those results are labelled as a second run.
+
+### Checks and outputs
+
+Before any holdout return is computed:
+- the refitted 2021 model must reproduce the recorded January-November 2021 predictions;
+- each book must reproduce its recorded net Sharpe up to the last research date;
+- no training label may reach its test year, on any new fold.
+
+The results will go to `reports/holdout/`, with a summary there and `notebooks/08_holdout.ipynb`.
+
 ## Data attribution
 
 Data from Sharadar: Core US Equities Bundle (SEP prices, S&P 500 constituents,corporate actions). 
@@ -816,3 +885,6 @@ second holdout candidate, and a lambda point that doesn't extend past a grid edg
 The second-round tests check the band by hand: a name moves only to the band's edge, a name without a target is sold in full,
 and zero dollars and beta are restored. Band 0 reproduces the recorded construction, and the band can't see the future. They
 also run the whole round on a synthetic panel, including tuning on data poisoned after the tuning window.
+
+The holdout-config tests do the same for `configs/holdout.yaml`, including a changed hash, a swapped book, a softer outcome and a
+dirty tree, and they check that loading the design reads no parquet file.

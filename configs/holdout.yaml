@@ -1,0 +1,124 @@
+# Holdout design, fixed before any row on or after holdout_start is read. Question: do the frozen
+# books hold up on data nothing in this project has touched? It runs once, and a null or negative
+# result is reported as such. Nothing here can be tuned: every choice is pinned to a committed
+# result by hash. See "Holdout: design" in README.md.
+
+portfolio_config: configs/portfolio.yaml
+research_config: configs/research.yaml
+features_config: configs/features.yaml
+models_config: configs/models.yaml
+second_round_config: configs/second_round.yaml
+
+pinned:                            # the run refuses if any of these changes
+  panel_sha256: 747c69f3ea849f522e4f3e277de4771ea9d79c794be27425f89eb25f8cd6ee4c
+  models_config_sha256: 34ed5f4564f4b587e822e22a650b4e1af37dafa3ec9ab30acd1dbb3551f91513
+  portfolio_config_sha256: 6e2e5c1a33960b5a6fe7af7010651d7f33ae2f9024ada4effa1f86990f1dff2d
+  second_round_config_sha256: a8d9bb8ae60096c5e57272dbf717fa5af0bca4aa0ac4c6d023cf59d1c7dd34c2
+  portfolio_lambdas_sha256: f826ae7b633342438c4b731ee71950013655ddbccdd71890d82c0a67e09a224b
+  model_hyperparameters_sha256: 19f645541cc37c526f0db6be1e9050c2f9d5d6dcd9ec48c2977416639e77645c
+  holdout_candidate_sha256: 30565ed0c1410a7dffb75af5be8969daab065c39b404534200c6a9f739d8a9a5
+
+inputs:
+  portfolio_lambdas: reports/portfolio/hyperparameters.csv
+  model_hyperparameters: reports/models/hyperparameters.csv
+  holdout_candidate: reports/second_round/tuning/holdout_candidate.csv
+  predictions: data/processed/oof_predictions.parquet
+  recorded_daily_returns: data/processed/portfolio/{signal}/portfolio_daily_returns.parquet
+  recorded_candidate_returns: data/processed/second_round/liquid_universe__lightgbm_h5_rank__optimised__0.25.parquet
+
+books:                             # exactly these three; nothing can be added once this is committed
+  headline:
+    signal: lightgbm_h5_rank
+    construction: optimised
+    role: primary
+    lambdas: [100.0, 4.0]
+    liquid_fraction: 1.0
+  benchmark:
+    signal: B0_reversal_h5
+    construction: optimised
+    role: comparator
+    lambdas: [3.0, 1.0]            # the first-round choice, not the second-round (1, 1)
+    liquid_fraction: 1.0
+  candidate:
+    signal: lightgbm_h5_rank
+    construction: optimised
+    role: second_round_candidate
+    lambdas: [100.0, 4.0]
+    liquid_fraction: 0.25
+
+window:
+  start: first_holdout_date        # 2022-01-03
+  last_panel_date: "2026-10-23"    # configs/features.yaml data.end; 1,207 trading days, about 4.8 years
+  statistics_start: first_holdout_date
+  last_score_date: label_ends_by_last_panel_date   # later positions can't be closed, so nothing is scored after it
+  runoff: to_label_end             # open tranches run to their label end and liquidate at cost
+
+# One refit rule, the first-round one continued. The model is refit every January on an expanding
+# window, with the same grid, inner validation, purge, seed and early stopping as configs/models.yaml.
+# Fold Y trains only on labels ending before the first date of Y, so a later fold may use earlier
+# holdout labels, exactly as a live book would. No hyperparameter or feature is chosen by hand.
+model_refit:
+  model: lightgbm
+  horizon: 5
+  target_variant: rank
+  scheme: continue_walk_forward
+  test_years: [2022, 2023, 2024, 2025, 2026]
+  settings: from_models_config     # grid, seed, threads, stride, purge and inner validation, all unchanged
+  grinold_ic: fold_validation_block  # each fold's own validation IC, as in the first round
+  benchmark_score: fixed_formula   # B0 needs no fit: -z_ret_5d; its IC comes from the fold's validation block
+
+# The research sample stops at 2021-11-30, and the holdout starts on 2022-01-03. Starting the books flat
+# in 2022 would leave them far from their recorded state, because lambda_tc = 4 builds a book slowly.
+# So they run continuously from 2007, and only the holdout window is reported.
+continuity:
+  run_from: first_oos_date         # 2007-01-03, the recorded start
+  december_2021: fold_2021_model   # the embargoed dates are scored by the unchanged 2021 model (no new fit)
+  reporting_starts: first_holdout_date
+  engine_guard: pass_first_date_after_panel   # run_backtest's holdout argument, from this runner only
+
+# Declared before any holdout return exists. t uses the research NW lag rule; intervals use the bootstrap below.
+outcomes:
+  headline:                        # primary: net Sharpe of the headline book
+    t_threshold: 2.0
+    labels: {at_or_above: holds_up, at_or_below_minus: fails, between: inconclusive}
+  lightgbm_minus_b0:               # primary: paired net Sharpe difference, headline minus benchmark
+    interval: bootstrap_excludes_zero
+    labels: {above_zero: lightgbm_better, below_zero: b0_better, contains_zero: no_difference_shown}
+  candidate:                       # secondary: same labels as the headline; it cannot replace the headline
+    t_threshold: 2.0
+    labels: {at_or_above: holds_up, at_or_below_minus: fails, between: inconclusive}
+
+reporting:
+  statistics: [net_sharpe, net_nw_t, net_return_ann, net_vol_ann, gross_sharpe, annual_turnover,
+               breakeven_cost_multiplier, cost_ann, borrow_ann, max_drawdown, mean_gross_exposure]
+  by_year: true
+  breakevens: [impact_y, borrow_bps_per_year]   # at the recorded trades, as in configs/sensitivity.yaml
+  model_ic: secondary              # daily Spearman IC of the LightGBM score, with its NW t
+  realised_beta: equal_weighted_universe
+
+bootstrap:                         # as configs/sensitivity.yaml
+  method: stationary
+  n_resamples: 10000
+  seed: 20260101
+  mean_block_length: 21
+  confidence: 0.95
+  interval: percentile
+
+one_shot:
+  requires_flag: --open-holdout    # no other command reads a holdout row
+  requires_clean_tree: true        # no --allow-dirty-config: config and code must be committed
+  lock_file: reports/holdout/opened.json   # written before the first holdout row is read; a second run refuses
+  failed_check_policy: stop_and_report
+    # a check that fails after the lock is written is reported as it stands. The holdout isn't run again
+    # without a new, committed amendment that says why, and the results are then labelled as a second run.
+
+checks:                            # run before any holdout return is computed
+  fold_2021_prediction_tolerance: 1.0e-5    # refitted 2021 model vs recorded predictions, Jan-Nov 2021
+  recorded_series_sharpe_tolerance: 1.0e-6  # each book vs its recorded net Sharpe, to the last research date
+  fold_leakage: none               # src.validation.assert_no_leakage on every new fold
+
+outputs:
+  reports_dir: reports/holdout     # tidy CSVs, run_metadata.json and SUMMARY.md
+  figures_dir: reports/holdout/figures
+  data_dir: data/processed/holdout # gitignored
+  notebook: notebooks/08_holdout.ipynb
