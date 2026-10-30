@@ -603,6 +603,61 @@ evidence is that they shrink once `st_rev` is in the model.
 Full write-up: [`reports/attribution/SUMMARY.md`](reports/attribution/SUMMARY.md). Notebook:
 [`notebooks/05_attribution.ipynb`](notebooks/05_attribution.ipynb).
 
+## Sensitivity: design
+
+How much of the portfolio result is sampling noise, and how far does it depend on the two assumed cost inputs and on the
+choice of rebalance offset? The design is fixed in [`configs/sensitivity.yaml`](configs/sensitivity.yaml) and is committed
+before any of these statistics is computed. `src.sensitivity.load_sensitivity_config` rejects unknown or missing keys,
+wrong types, methods the design does not define, a grid without its base point, and primary intervals that differ from the
+ones below. The runner will use the same guard as the other runners (`src.utils.provenance`).
+
+This design was written after the results in `reports/portfolio/` and `reports/attribution/` were seen. It re-reads the
+recorded base-case books for all 12 signal × construction pairs. No backtest is rerun, the optimiser is not re-solved, no
+book is chosen, and nothing in `configs/portfolio.yaml` changes. The evaluation window is primary. The tuning window is
+secondary and keeps its in-sample label.
+
+### Bootstrap
+
+- **Method:** stationary bootstrap of daily returns with 10,000 resamples and a fixed seed, giving 95% percentile intervals
+  for the annualised Sharpe, gross and net.
+- **Block length:** a mean of 21 trading days is primary, which reaches the longest horizon so overlapping tranches stay
+  together. Means of 42 and 63 days show how much that choice matters.
+- **Paired differences:** LightGBM minus B0 in each construction, with both books using the same resampled days, so their
+  shared risk stays in the comparison.
+
+Two intervals are declared in advance, both net and on the evaluation window: the headline Sharpe, and LightGBM minus B0
+under `optimised`. Everything else is descriptive and gets no multiple-testing correction. An interval that contains zero
+says the data can't separate the number from zero. It doesn't show the number is zero.
+
+### Y and borrow repricing
+
+`net = gross - commission - spread - impact × (Y / 1) - borrow × (rate / 25 bp)`, day by day, over a full cross of Y in
+{0.25, 0.5, 1, 1.5, 2} and borrow in {0, 25, 50, 100, 200} bp a year. Impact and borrow are linear in these inputs, so this
+is exact for the recorded trades. Each book also gets a break-even for each input, with the other held at base. A negative
+break-even means the book loses money even with that cost at zero.
+
+**The trades are held fixed.** The optimiser saw base costs, and it would trade differently under other costs. So these
+numbers answer "what would this book have cost?", not "what would the best book have been?". They differ on purpose from
+`reports/portfolio/scenarios.csv`, which re-solves.
+
+### Offsets
+
+Each tranche is one rebalance offset, so the recorded tranche rows already hold each offset's book. Returns are scaled to the
+tranche's own capital, which leaves Sharpe unchanged. Each book reports Sharpe, return and turnover per offset, gross and net,
+with the minimum, maximum, range and standard deviation across offsets next to the total. This is descriptive, with no test
+declared, because offsets share most of their risk.
+
+### Checks and outputs
+
+The run stops before writing results if any of these fails:
+- point Sharpes must reproduce `reports/portfolio/summary.csv`;
+- the base point of the grid must reproduce the recorded net series, day by day;
+- tranche rows must sum to the total row, day by day;
+- both books of a paired difference must have identical dates;
+- the last date of every book must fall before `holdout_start`.
+
+The results will go to `reports/sensitivity/`, with a summary there and `notebooks/06_sensitivity.ipynb`.
+
 ## Data attribution
 
 Data from Sharadar: Core US Equities Bundle (SEP prices, S&P 500 constituents,corporate actions). 
@@ -637,3 +692,6 @@ the optimiser constraints and each fallback path. The backtest tests run on smal
 
 The attribution-config tests load the real `configs/attribution.yaml` and check that the loader rejects each way of
 leaving the pre-registered design, including a change to the confirmatory test or to the holdout cut on factor files.
+
+The sensitivity-config tests do the same for `configs/sensitivity.yaml`, including a change to a primary interval, a grid
+without its base point, and a block length shorter than the longest horizon.

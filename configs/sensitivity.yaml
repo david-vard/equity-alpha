@@ -1,0 +1,86 @@
+# Sensitivity design, fixed before any bootstrap, repricing or per-offset statistic is computed.
+# Question: how much of the portfolio result is sampling noise, and how far does it depend on the
+# two assumed cost inputs and on the choice of rebalance offset? Everything here re-reads the
+# recorded base-case books: no backtest is rerun, the optimiser is not re-solved, no book is chosen
+# and nothing in configs/portfolio.yaml changes. This design was written after the results in
+# reports/portfolio/ and reports/attribution/ were seen, so it decides nothing about which book is
+# traded. See "Sensitivity: design" in README.md.
+
+portfolio_config: configs/portfolio.yaml
+research_config: configs/research.yaml
+features_config: configs/features.yaml
+
+book_data:                         # per-signal output of src.run_portfolio (gitignored)
+  daily_returns: data/processed/portfolio/{signal}/portfolio_daily_returns.parquet
+  portfolio_metadata: reports/portfolio/run_metadata.json   # its config hash must match the portfolio config
+  summary_table: reports/portfolio/summary.csv              # window dates and the Sharpes to reproduce
+  scenario: base                   # $100m, cost multiplier 1
+  signals: all_in_portfolio_config       # the four signals
+  constructions: all_in_portfolio_config # the three constructions: 12 books
+
+windows:
+  evaluation: primary              # 2014-01-02 to each book's last date
+  tuning: secondary                # 2007-2013, reported with the in-sample label of reports/portfolio/
+
+bootstrap:
+  method: stationary               # Politis-Romano, wrapping the sample into a circle
+  series: [gross_pnl, net_pnl]
+  statistic: annualised_sharpe     # mean / sd * sqrt(trading days), on additive daily returns per $ of capital
+  n_resamples: 10000
+  seed: 20260101                   # every book of the same window and length uses the same resampled days
+  mean_block_lengths: [21, 42, 63] # trading days; the first is primary, the others show its sensitivity. All
+                                   # reach the longest horizon, 21, so overlapping tranches stay together
+  confidence: 0.95
+  interval: percentile
+  paired_differences:              # both books use the same resampled days, so their shared risk stays in
+    minuend: lightgbm_h5_rank      # per construction: minuend - subtrahend
+    subtrahend: B0_reversal_h5
+
+# The two pre-declared intervals. Everything else in this design is descriptive and gets no
+# multiple-testing correction. An interval that contains zero says the data can't separate the
+# number from zero; it does not show the number is zero.
+primary_intervals:
+  headline:
+    signal: lightgbm_h5_rank
+    construction: optimised
+    series: net_pnl
+    window: evaluation
+  lightgbm_minus_b0:
+    construction: optimised
+    series: net_pnl
+    window: evaluation
+
+repricing:
+  method: base_trades_held_fixed
+    # net = gross - commission - spread - impact * (y / base y) - borrow * (rate / base rate), day by day.
+    # Impact and borrow are linear in these inputs (src.costs), so this is exact for the recorded trades.
+    # The optimiser is not re-solved: it saw the base costs, so its trades would change under other costs,
+    # unlike reports/portfolio/scenarios.csv, which re-solves.
+  impact_y: [0.25, 0.5, 1.0, 1.5, 2.0]             # must hold costs.impact.y
+  borrow_bps_per_year: [0.0, 25.0, 50.0, 100.0, 200.0]   # must hold costs.borrow_bps_per_year
+  grid: full_cross                 # 25 points per book and window
+  statistics: [net_sharpe, net_nw_t, net_return_ann]
+  breakeven: [impact_y, borrow_bps_per_year]
+    # the value of one input at which the mean net return is zero, the other held at its base value;
+    # negative means the book loses money even with that cost at zero
+
+offsets:
+  source: tranche_rows             # the recorded per-tranche rows of the daily file
+  series: [gross_pnl, net_pnl]
+  scale_to_tranche_capital: true   # tranche rows are per $ of total capital; returns are multiplied by
+                                   # n_tranches so each is one offset's own book. Sharpe does not change
+  statistics: [sharpe, return_ann, turnover_ann]
+  dispersion: [min, max, range, sd]   # across a book's offsets, next to its total
+  inference: none                  # descriptive: offsets share most of their risk, so no test is declared
+
+checks:                            # any failure stops the run before results are written
+  reproduce_sharpes_tolerance: 1.0e-9   # point Sharpes vs reports/portfolio/summary.csv
+  reprice_base_tolerance: 1.0e-12       # the base point of the grid vs the recorded net series, per day
+  tranches_sum_tolerance: 1.0e-9        # tranche rows vs the total row, per day
+  paired_dates: identical          # both books of a difference must have the same dates
+  last_date: before_holdout_start
+
+outputs:
+  reports_dir: reports/sensitivity # tidy CSVs, run_metadata.json and SUMMARY.md
+  figures_dir: reports/sensitivity/figures
+  notebook: notebooks/06_sensitivity.ipynb
