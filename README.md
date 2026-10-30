@@ -753,6 +753,20 @@ python -m src.run_second_round --report                 # -> reports/second_roun
 `--select` writes only `checks.csv` if a check fails. It writes the holdout candidate before any evaluation-window return of a
 variant exists. `--evaluate` refuses a selection made with a different config.
 
+### Results (second look: evaluation window, base costs)
+
+**The headline doesn't change, and every number here is weaker evidence than it.** The holdout candidate, chosen on 2007-2013, is
+LightGBM `optimised` on the top 25% of names. It reaches 0.38 net (t 1.09, interval -0.29 to 1.07) on a very small book: mean gross
+0.25 and about 30 bp a year.
+
+LightGBM `neutral_volscaled` with band 4 reaches 0.71 net (t 2.04, interval 0.09 to 1.35) and is positive in all 8 years. It's the
+most interesting result and the least understood. It trades about 1.5× a year, so it's no longer a five-day book, its holdings
+depend on its 2007 start, and the same rule fails on B0. It isn't the candidate, because its tuning net Sharpe of 0.32 was below the
+headline's 0.35. The liquid universe didn't hold up out of sample, and the wider lambda grid added nothing.
+
+Full write-up: [`reports/second_round/SUMMARY.md`](reports/second_round/SUMMARY.md). Notebook:
+[`notebooks/07_second_round.ipynb`](notebooks/07_second_round.ipynb).
+
 ## Data attribution
 
 Data from Sharadar: Core US Equities Bundle (SEP prices, S&P 500 constituents,corporate actions). 

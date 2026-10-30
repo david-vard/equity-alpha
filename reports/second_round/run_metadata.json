@@ -1,0 +1,15 @@
+{
+  "config_commit": "7ad06410cb9d329708f672abc833d53990d4f1c6",
+  "config_dirty": false,
+  "config_sha256": "a8d9bb8ae60096c5e57272dbf717fa5af0bca4aa0ac4c6d023cf59d1c7dd34c2",
+  "code_commit": "a621f2d212ceb33d180ecaacdb2cb306a6833c54",
+  "code_dirty": false,
+  "features_config_sha256": "42109759ae31f519774ae5ebdcdf59468732ed5eb2511704420bf1ed47fc136d",
+  "panel_sha256": "747c69f3ea849f522e4f3e277de4771ea9d79c794be27425f89eb25f8cd6ee4c",
+  "panel_bytes": 649981296,
+  "mode": "report",
+  "n_variants_tried": 62,
+  "evidence": "second_look",
+  "holdout_start": "2022-01-01",
+  "portfolio_config_sha256": "6e2e5c1a33960b5a6fe7af7010651d7f33ae2f9024ada4effa1f86990f1dff2d"
+}
